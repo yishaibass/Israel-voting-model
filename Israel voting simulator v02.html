@@ -1,0 +1,1499 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Israel Voting Model Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Main bloc colors — warm=Coalition, cool=Opposition */
+  --coalition:  #C27B00;   /* Amber-gold — matches Haredi (dominant coalition group) */
+  --opposition: #2B5FA8;   /* Strong blue */
+  --nonvoted:   #6B7280;   /* Neutral gray */
+  --wasted:     #9B6A00;   /* Dark amber — attention, not alarm */
+  /* Demographic group colors — shade encodes coalition lean */
+  --haredi:     #C27B00;   /* Deep amber-gold — 96% Coalition */
+  --dati:       #D4920A;   /* Amber — 77% Coalition */
+  --masorti:    #E8A830;   /* Warm yellow-orange — 81% Coalition */
+  --druze:      #8E9BB5;   /* Neutral gray-blue — mixed 18% Coalition */
+  --hiloni:     #4A7BC4;   /* Medium steel blue — 38% Coalition */
+  --arab:       #1D4E8F;   /* Deep navy — 2% Coalition */
+  /* Accent / highlights */
+  --anomaly:    #10B981;   /* Teal-green for K25 anomaly flags */
+  --neutral:    #D1D5DB;   /* Light gray for baselines and axes */
+  /* Surface / background */
+  --bg:         #0D1117;
+  --surface:    #161B22;
+  --surface2:   #21262D;
+  --border:     #30363D;
+  --text:       #F0F6FC;
+  --muted:      #8B949E;
+  --green:      #3FB950;
+  --amber:      #D29922;
+  --font-head: 'Syne', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-body: 'Inter', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-body); min-height: 100vh; }
+nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; height: 50px; gap: 0; }
+.nav-title { font-family: var(--font-head); font-size: 14px; color: var(--muted); margin-right: 28px; letter-spacing: 0.08em; white-space: nowrap; }
+.nav-tabs { display: flex; }
+.tab-btn { font-family: var(--font-head); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; padding: 0 16px; height: 50px; transition: color 0.15s, border-color 0.15s; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--text); border-bottom-color: var(--coalition); }
+main { margin-top: 50px; padding: 20px; max-width: 1280px; margin-left: auto; margin-right: auto; }
+.view { display: none; animation: fi 0.15s ease; }
+.view.active { display: block; }
+@keyframes fi { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+.card-sm { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 14px 16px; }
+.section-title { font-family: var(--font-head); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); margin-bottom: 16px; }
+/* ---- INSIGHTS ---- */
+.ins-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+@media (max-width: 700px) { .ins-hero { grid-template-columns: 1fr; } }
+.ins-headline { font-family: var(--font-head); font-size: 22px; font-weight: 800; line-height: 1.2; margin-bottom: 12px; }
+.ins-sub { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 16px; }
+.split-bar-wrap { margin-bottom: 10px; }
+.split-bar-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-bottom: 4px; letter-spacing: 0.04em; }
+.split-bar { height: 32px; border-radius: 4px; overflow: hidden; display: flex; }
+.sbs { height: 100%; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 11px; font-weight: 600; overflow: hidden; transition: width 0.3s; }
+.sbs.coal { background: var(--coalition); }
+.sbs.opp  { background: var(--opposition); }
+.sbs.nvote{ background: var(--nonvoted); }
+.flow-diagram { margin-top: 16px; }
+.flow-step { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.flow-pct { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--text); min-width: 48px; }
+.flow-label { font-size: 11px; color: var(--muted); }
+.flow-arrow { color: var(--muted); font-size: 16px; margin: 0 4px; }
+.flow-mechanism { font-size: 10px; color: var(--muted); padding: 2px 6px; background: var(--surface2); border-radius: 3px; white-space: nowrap; }
+/* anomaly table */
+.anom-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.anom-row:last-child { border-bottom: none; }
+.anom-group { font-family: var(--font-head); font-size: 12px; font-weight: 700; width: 130px; flex-shrink: 0; }
+.anom-bar-wrap { flex: 1; height: 12px; background: var(--surface2); border-radius: 3px; overflow: visible; position: relative; }
+.anom-bar { height: 100%; border-radius: 3px; transition: width 0.3s; }
+.anom-flag { font-family: var(--font-mono); font-size: 9px; color: var(--amber); margin-left: 6px; white-space: nowrap; }
+.anom-stable { font-size: 10px; color: var(--muted); font-style: italic; }
+.star-key { color: var(--amber); font-weight: 700; }
+/* levers */
+.lever-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.lever-name { font-family: var(--font-head); font-size: 11px; width: 170px; flex-shrink: 0; }
+.lever-bar-wrap { flex: 1; height: 14px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+.lever-bar { height: 100%; border-radius: 3px; }
+.lever-val { font-family: var(--font-mono); font-size: 10px; color: var(--muted); min-width: 50px; text-align: right; }
+/* ---- SCENARIO ---- */
+.scenario-layout { display: grid; grid-template-columns: 38% 62%; gap: 24px; align-items: start; }
+@media (max-width: 700px) { .scenario-layout { grid-template-columns: 1fr; } }
+.result-panel { position: sticky; top: 70px; }
+.baseline-seg { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
+.baseline-btn { flex: 1; padding: 6px 0; font-family: var(--font-head); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; border: none; background: none; color: var(--muted); cursor: pointer; transition: background 0.15s, color 0.15s; }
+.baseline-btn:not(:last-child) { border-right: 1px solid var(--border); }
+.baseline-btn.active { background: var(--surface2); color: var(--text); box-shadow: inset 0 -2px 0 var(--coalition); }
+.slider-row { margin-bottom: 16px; }
+.slider-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+.slider-name { font-family: var(--font-head); font-size: 12px; font-weight: 700; }
+.slider-readout { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+.slider-note { font-size: 10px; color: var(--muted); margin-top: 2px; font-style: italic; }
+.slider-ticks { display: flex; justify-content: space-between; margin-top: 2px; }
+.slider-tick { font-family: var(--font-mono); font-size: 9px; color: var(--muted); }
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--opposition) 0%, var(--opposition) 50%, var(--coalition) 50%, var(--coalition) 100%); outline: none; cursor: pointer; }
+input[type=range].thresh-range { background: linear-gradient(to right, var(--coalition) 0%, var(--coalition) 50%, var(--opposition) 50%, var(--opposition) 100%); }
+input[type=range].vote-range { background: linear-gradient(to right, var(--surface2) 0%, var(--surface2) 50%, var(--green) 50%, var(--green) 100%); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--border); cursor: pointer; transition: box-shadow 0.15s, transform 0.15s; }
+input[type=range]::-webkit-slider-thumb:hover { box-shadow: 0 0 0 4px rgba(240,246,252,0.15); transform: scale(1.1); }
+input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--border); cursor: pointer; }
+.reset-btn { width: 100%; margin-top: 12px; padding: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); font-family: var(--font-head); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; border-radius: 6px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.reset-btn:hover { background: var(--border); color: var(--text); }
+.preset-sel { width: 100%; margin-top: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-family: var(--font-body); font-size: 12px; padding: 7px 9px; border-radius: 6px; cursor: pointer; outline: none; }
+/* 3-cut bars */
+.cut-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.cut-label { font-family: var(--font-mono); font-size: 9px; color: var(--muted); width: 120px; flex-shrink: 0; text-align: right; line-height: 1.4; }
+.cut-bar-wrap { flex: 1; position: relative; }
+.cut-bar { border-radius: 3px; overflow: hidden; display: flex; position: relative; }
+.cut-bar.h-sm  { height: 32px; }
+.cut-bar.h-md  { height: 42px; }
+.cut-bar.h-sm2 { height: 32px; }
+.cut-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 11px; font-weight: 600; overflow: hidden; transition: width 0.25s; }
+.cut-seg.coal  { background: var(--coalition); }
+.cut-seg.opp   { background: var(--opposition); }
+.cut-seg.nvote { background: var(--nonvoted); }
+.cut-thresh { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); opacity: 0.7; pointer-events: none; }
+.cut-thresh-lbl { position: absolute; top: -16px; font-family: var(--font-mono); font-size: 9px; color: var(--muted); transform: translateX(-50%); white-space: nowrap; }
+.seat-hero { display: flex; gap: 20px; align-items: center; margin: 16px 0; }
+.seat-block { text-align: center; }
+.seat-num { font-family: var(--font-mono); font-size: 38px; font-weight: 600; }
+.seat-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.maj-badge { display: inline-block; font-family: var(--font-mono); font-size: 12px; font-weight: 600; letter-spacing: 0.07em; padding: 5px 12px; border-radius: 12px; transition: all 0.25s; }
+.maj-badge.yes  { background: rgba(63,185,80,0.18); color: var(--green); border: 1px solid var(--green); }
+.maj-badge.near { background: rgba(210,153,34,0.18); color: var(--amber); border: 1px solid var(--amber); }
+.maj-badge.no   { background: rgba(194,123,0,0.18);  color: var(--coalition); border: 1px solid var(--coalition); }
+/* breakdown bars */
+.breakdown-title { font-family: var(--font-head); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; margin-top: 14px; }
+.breakdown-bar { height: 24px; border-radius: 3px; overflow: hidden; display: flex; margin-bottom: 4px; }
+.breakdown-seg { height: 100%; transition: width 0.25s; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-mono); overflow: hidden; }
+.breakdown-lbl-row { display: flex; flex-wrap: wrap; gap: 2px 8px; }
+.bdlbl { font-family: var(--font-mono); font-size: 9px; }
+.jz-toggle { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.jz-btn { font-family: var(--font-mono); font-size: 10px; padding: 4px 10px; border-radius: 4px; cursor: pointer; border: 1px solid var(--border); background: none; color: var(--muted); transition: all 0.15s; }
+.jz-btn.active { background: var(--surface2); color: var(--text); border-color: var(--muted); }
+.jz-note { font-size: 10px; color: var(--muted); }
+/* ---- ASSUMPTIONS ---- */
+details { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 12px; overflow: hidden; }
+details summary { padding: 12px 16px; cursor: pointer; font-family: var(--font-head); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); background: var(--surface2); user-select: none; list-style: none; display: flex; align-items: center; justify-content: space-between; }
+details summary::after { content: '+'; font-size: 18px; color: var(--muted); }
+details[open] summary::after { content: '−'; }
+details summary:hover { color: var(--text); }
+.details-body { padding: 16px; background: var(--surface); }
+.group-slider-block { border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 10px; background: var(--surface2); }
+.group-slider-header { font-family: var(--font-head); font-size: 12px; font-weight: 700; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: baseline; }
+.thresh-input-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.thresh-input-block { flex: 1; min-width: 120px; }
+.thresh-input-lbl { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+.thresh-input { background: var(--surface); border: 1px solid var(--border); color: var(--text); font-family: var(--font-mono); font-size: 12px; padding: 5px 8px; border-radius: 4px; width: 100%; outline: none; }
+.thresh-input:focus { border-color: var(--muted); }
+.wt-row { display: flex; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border); }
+.wt-row:last-child { border-bottom: none; }
+.wt-group { font-family: var(--font-head); font-size: 11px; width: 100px; flex-shrink: 0; }
+.wt-val { font-family: var(--font-mono); font-size: 11px; }
+.wt-delta { font-family: var(--font-mono); font-size: 10px; }
+/* ---- HISTORY ---- */
+.hist-toggle-row { display: flex; gap: 10px; margin-bottom: 18px; }
+.hist-view-btn { padding: 6px 14px; border-radius: 4px; border: 1px solid var(--border); background: none; color: var(--muted); font-family: var(--font-head); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; cursor: pointer; transition: all 0.15s; }
+.hist-view-btn.active { background: var(--surface2); color: var(--text); border-color: var(--muted); }
+.hm-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 11px; }
+.hm-table th { padding: 5px 8px; text-align: center; color: var(--muted); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.hm-table th:first-child { text-align: left; }
+.hm-table td { padding: 4px 8px; text-align: center; position: relative; }
+.hm-table td:first-child { text-align: left; font-family: var(--font-head); font-size: 11px; font-weight: 700; color: var(--text); white-space: nowrap; }
+.hm-table tr:hover td { filter: brightness(1.15); }
+.hm-cell { display: inline-block; min-width: 44px; padding: 3px 5px; border-radius: 3px; font-weight: 600; }
+.hm-flag { font-size: 9px; color: var(--amber); margin-left: 2px; }
+.chart-svg { width: 100%; overflow: visible; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 10px; }
+.leg-item { display: flex; align-items: center; gap: 5px; cursor: pointer; padding: 2px 6px; border-radius: 3px; transition: background 0.1s; }
+.leg-item:hover { background: var(--surface2); }
+.leg-item.off { opacity: 0.3; }
+.leg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.leg-lbl { font-size: 11px; }
+/* misc */
+.tooltip { position: fixed; background: var(--surface2); border: 1px solid var(--border); border-radius: 5px; padding: 7px 11px; font-size: 11px; pointer-events: none; z-index: 200; opacity: 0; transition: opacity 0.1s; max-width: 180px; }
+.tooltip.vis { opacity: 1; }
+footer { margin-top: 40px; padding: 18px 0; border-top: 1px solid var(--border); text-align: center; font-size: 10px; color: var(--muted); font-family: var(--font-mono); line-height: 1.9; }
+@media (max-width: 375px) {
+  main { padding: 10px; }
+  .scenario-layout { grid-template-columns: 1fr; }
+  .seat-num { font-size: 28px; }
+  .cut-label { width: 70px; font-size: 8px; }
+}
+</style>
+</head>
+<body>
+<nav>
+  <span class="nav-title">IL VOTING</span>
+  <div class="nav-tabs">
+    <button class="tab-btn active" data-tab="insights">Insights</button>
+    <button class="tab-btn" data-tab="scenario">Scenario</button>
+    <button class="tab-btn" data-tab="assumptions">Assumptions</button>
+    <button class="tab-btn" data-tab="history">History</button>
+  </div>
+</nav>
+<main>
+
+<!-- INSIGHTS -->
+<div class="view active" id="view-insights">
+  <div class="card" id="ins-a"></div>
+  <div class="card" id="ins-b"></div>
+  <div class="card" id="ins-c"></div>
+  <div class="card" style="padding:16px 20px">
+    <div class="section-title">Section D &mdash; Demographic drift</div>
+    <p style="font-size:13px;line-height:1.65;color:var(--muted)"><span style="color:var(--text);font-family:var(--font-mono);font-size:13px;font-weight:600">+0.2pp</span> Coalition advantage from demographic change alone over 3.5 years (K25 &rarr; 2026). The battlefield is behavior, not demographics.</p>
+  </div>
+  <div class="card" style="padding:14px 20px;background:var(--surface2)">
+    <div class="section-title">Model confidence</div>
+    <p style="font-size:11px;color:var(--muted);line-height:1.7">Ecological inference (constrained OLS) on ~1,150 localities per election &middot; K21&ndash;K25 &middot; 6 demographic groups.<br>R&sup2; vote choice: 0.78&ndash;0.81 &middot; R&sup2; turnout: 0.12&ndash;0.45 (higher uncertainty for turnout estimates).<br>K25 baseline: 61.9 implied seats (actual: 64 &mdash; ~2-seat D&#x27;Hondt allocation gap). <a href="#" onclick="switchTab('assumptions');return false;" style="color:var(--coalition);text-decoration:none">How the model works &rarr;</a></p>
+  </div>
+</div>
+
+<!-- SCENARIO -->
+<div class="view" id="view-scenario">
+  <div class="scenario-layout">
+    <div>
+      <div class="section-title">Controls</div>
+      <div class="baseline-seg" id="baseline-seg">
+        <button class="baseline-btn active" data-base="k25">2022 Election</button>
+        <button class="baseline-btn" data-base="historical">Historical Average</button>
+      </div>
+      <div id="scenario-levers"></div>
+      <button class="reset-btn" id="reset-btn">&#x21BA; Reset to baseline</button>
+      <select class="preset-sel" id="preset-sel">
+        <option value="">&#8212; Apply preset &#8212;</option>
+        <option value="baseline">Baseline (all 0)</option>
+        <option value="k23">K23 conditions (high Coalition)</option>
+        <option value="k24">K24 conditions (low Coalition)</option>
+      </select>
+    </div>
+    <div class="result-panel" id="result-panel">
+      <div class="section-title">Live result</div>
+      <div id="three-cuts"></div>
+      <div class="seat-hero" id="seat-hero"></div>
+      <div id="maj-wrap"></div>
+      <div id="breakdown"></div>
+      <div class="jz-toggle">
+        <button class="jz-btn active" id="jz-all-btn" onclick="setJZ(false)">All groups</button>
+        <button class="jz-btn" id="jz-jz-btn" onclick="setJZ(true)">Jewish Zionist only</button>
+        <span class="jz-note" id="jz-note"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ASSUMPTIONS -->
+<div class="view" id="view-assumptions">
+  <details>
+    <summary>Data Sources &amp; Cleaning</summary>
+    <div class="details-body">
+      <div class="section-title" style="margin-bottom:10px">Data sources</div>
+      <div style="overflow-x:auto;margin-bottom:18px">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:var(--font-body)">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border)">
+              <th style="text-align:left;padding:5px 10px;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap">Source</th>
+              <th style="text-align:left;padding:5px 10px;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:0.06em">What it contains</th>
+              <th style="text-align:left;padding:5px 10px;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap">Elections covered</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid rgba(48,54,61,0.5)">
+              <td style="padding:7px 10px;font-family:var(--font-mono);font-size:10px;white-space:nowrap;color:var(--text)">Central Elections Committee</td>
+              <td style="padding:7px 10px;color:var(--muted)">Ballot-box vote counts per party</td>
+              <td style="padding:7px 10px;font-family:var(--font-mono);font-size:10px;color:var(--muted)">K21&ndash;K25 (2019&ndash;2022)</td>
+            </tr>
+            <tr style="border-bottom:1px solid rgba(48,54,61,0.5)">
+              <td style="padding:7px 10px;font-family:var(--font-mono);font-size:10px;white-space:nowrap;color:var(--text)">CBS Kalpi-to-SA mapping</td>
+              <td style="padding:7px 10px;color:var(--muted)">Links each ballot box to a 2011 statistical area</td>
+              <td style="padding:7px 10px;font-family:var(--font-mono);font-size:10px;color:var(--muted)">K21&ndash;K25</td>
+            </tr>
+            <tr style="border-bottom:1px solid rgba(48,54,61,0.5)">
+              <td style="padding:7px 10px;font-family:var(--font-mono);font-size:10px;white-space:nowrap;color:var(--text)">CBS 2022 Census</td>
+              <td style="padding:7px 10px;color:var(--muted)">Demographic composition of each statistical area</td>
+              <td style="padding:7px 10px;font-family:var(--font-mono);font-size:10px;color:var(--muted)">2022 (applied to all elections)</td>
+            </tr>
+            <tr>
+              <td style="padding:7px 10px;font-family:var(--font-mono);font-size:10px;white-space:nowrap;color:var(--text)">CBS SA conversion key</td>
+              <td style="padding:7px 10px;color:var(--muted)">Maps 2011 SA codes to 2022 SA codes</td>
+              <td style="padding:7px 10px;font-family:var(--font-mono);font-size:10px;color:var(--muted)">All</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section-title" style="margin-bottom:10px">The matching challenge</div>
+      <p style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:12px">Each ballot box needs a demographic profile. CBS publishes a file linking ballot boxes to statistical areas — but two complications arise:</p>
+
+      <div style="border-left:3px solid var(--border);padding-left:14px;margin-bottom:12px">
+        <div style="font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--text);margin-bottom:4px">Split boxes</div>
+        <p style="font-size:11px;color:var(--muted);line-height:1.6">When a polling station gets too many registered voters, the CEC splits it (box 3 becomes 3.1, 3.2, 3.3). CBS only records the original integer (3). Resolved by mapping decimal sub-boxes back to their integer parent.</p>
+      </div>
+      <div style="border-left:3px solid var(--border);padding-left:14px;margin-bottom:16px">
+        <div style="font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--text);margin-bottom:4px">SA boundary changes</div>
+        <p style="font-size:11px;color:var(--muted);line-height:1.6">CBS updated its statistical area map between 2011 and 2022. A conversion file bridges the two vintages. Where a 2011 SA split into multiple 2022 SAs, the ballot box is assigned to the largest 2022 fragment by population.</p>
+      </div>
+
+      <div class="section-title" style="margin-bottom:10px">Match quality — 3 tiers</div>
+      <div style="margin-bottom:8px">
+        <div style="height:28px;border-radius:4px;overflow:hidden;display:flex;margin-bottom:6px">
+          <div style="width:68%;background:var(--coalition);opacity:0.85;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;font-weight:600;color:#000">68% SA-level</div>
+          <div style="width:26%;background:var(--druze);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;font-weight:600;color:#fff">26% locality</div>
+          <div style="width:6%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;color:var(--muted)">6%</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:10px;color:var(--muted);line-height:1.5">
+          <div><span style="font-family:var(--font-mono);font-weight:600;color:var(--coalition)">68%</span> — Exact 2022 SA match. Most precise demographic assignment.</div>
+          <div><span style="font-family:var(--font-mono);font-weight:600;color:var(--druze)">26%</span> — Locality average (less precise but directionally correct).</div>
+          <div><span style="font-family:var(--font-mono);font-weight:600;color:var(--muted)">6%</span> — No match: new ballot boxes added after CBS published their map. Excluded from regression.</div>
+        </div>
+      </div>
+    </div>
+  </details>
+  <details open>
+    <summary>A &mdash; Baseline &amp; Demographics</summary>
+    <div class="details-body">
+      <div style="margin-bottom:14px">
+        <div class="section-title" style="margin-bottom:8px">Baseline election</div>
+        <div class="baseline-seg" id="baseline-seg-2" style="max-width:320px">
+          <button class="baseline-btn active" data-base="k25">2022 Election</button>
+          <button class="baseline-btn" data-base="historical">Historical Average</button>
+        </div>
+      </div>
+      <div>
+        <div class="section-title" style="margin-bottom:8px">Population weights</div>
+        <div class="baseline-seg" id="popwt-seg" style="max-width:320px">
+          <button class="baseline-btn active" data-pw="k25">K25 Observed</button>
+          <button class="baseline-btn" data-pw="2026">2026 Projected</button>
+        </div>
+        <div id="wt-table" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </details>
+  <details open>
+    <summary>B &mdash; Group-level controls (all 12 dimensions)</summary>
+    <div class="details-body" id="group-sliders-all"></div>
+  </details>
+  <details>
+    <summary>C &mdash; Threshold detail</summary>
+    <div class="details-body">
+      <div class="thresh-input-row" id="thresh-inputs"></div>
+      <div style="margin-top:14px;overflow-x:auto">
+        <table class="hm-table" id="thresh-history-tbl"></table>
+      </div>
+    </div>
+  </details>
+  <details>
+    <summary>D &mdash; Demographic projection</summary>
+    <div class="details-body">
+      <p style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6">Population weights shift from K25 to 2026 projected values below (holding voting behavior constant). Haredi fastest-growing at 3% CAGR.</p>
+      <div id="proj-table"></div>
+    </div>
+  </details>
+  <button class="reset-btn" id="reset-btn-2" style="margin-top:8px">&#x21BA; Reset all to K25 baseline</button>
+</div>
+
+<!-- HISTORY -->
+<div class="view" id="view-history">
+  <div class="hist-toggle-row">
+    <button class="hist-view-btn active" data-hv="bibi">Vote Choice</button>
+    <button class="hist-view-btn" data-hv="vote">Turnout</button>
+  </div>
+  <div class="card" style="margin-bottom:20px">
+    <div class="section-title" id="hm-title">Coalition share by group &times; election</div>
+    <div style="overflow-x:auto;margin-bottom:4px"><table class="hm-table" id="heatmap-tbl"></table></div>
+    <div style="font-size:10px;color:var(--muted);margin-top:6px;font-family:var(--font-mono)">&#9733; = deviation from group mean &gt;5pp &nbsp;&middot;&nbsp; K25 column highlighted</div>
+  </div>
+  <div class="card">
+    <div class="section-title" id="chart-title">Coalition share K21&ndash;K25</div>
+    <div id="hist-note" style="font-size:10px;color:var(--muted);margin-bottom:10px"></div>
+    <div class="chart-legend" id="chart-legend"></div>
+    <svg class="chart-svg" id="line-chart" height="280" viewBox="0 0 800 280"></svg>
+  </div>
+</div>
+
+</main>
+<footer>Model: constrained OLS on ~1,150 Israeli localities, K21&ndash;K25 &nbsp;&middot;&nbsp; Current Coalition = Netanyahu-led coalition &nbsp;&middot;&nbsp; Seat projection indicative</footer>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ============================================================
+// DATA (embedded from processed model output, K21-K25)
+// ============================================================
+const DATA = {
+  groups:['haredi','dati','masorti','hiloni','arab','druze'],
+  group_labels:{haredi:'Haredi',dati:'Dati Leumi',masorti:'Masorti',hiloni:'Hiloni',arab:'Arab',druze:'Druze'},
+  group_weights_k25:{haredi:0.0829,dati:0.0651,masorti:0.101,hiloni:0.6076,arab:0.1297,druze:0.0137},
+  group_weights_2026:{haredi:0.088,dati:0.0668,masorti:0.1012,hiloni:0.5981,arab:0.1322,druze:0.0137},
+  theta_bibi_k25:{haredi:0.9788,dati:0.812,masorti:0.8755,hiloni:0.4035,arab:0.0097,druze:0.1212},
+  theta_vote_k25:{haredi:0.7206,dati:0.71,masorti:0.6636,hiloni:0.6425,arab:0.5362,druze:0.4884},
+  theta_bibi_mean:{haredi:0.9642,dati:0.7657,masorti:0.8138,hiloni:0.3822,arab:0.0235,druze:0.1762},
+  theta_vote_mean:{haredi:0.7192,dati:0.7248,masorti:0.6359,hiloni:0.6506,arab:0.5453,druze:0.5177},
+  theta_bibi_std:{haredi:0.0118,dati:0.0929,masorti:0.0416,hiloni:0.0278,arab:0.0157,druze:0.0417},
+  theta_vote_std:{haredi:0.0192,dati:0.0185,masorti:0.0283,hiloni:0.0124,arab:0.0883,druze:0.0437},
+  theta_bibi_by_elec:{
+    haredi:{K21:0.9681,K22:0.9427,K23:0.9653,K24:0.9659,K25:0.9788},
+    dati:{K21:0.6734,K22:0.8065,K23:0.8925,K24:0.6441,K25:0.812},
+    masorti:{K21:0.7999,K22:0.7672,K23:0.8483,K24:0.778,K25:0.8755},
+    hiloni:{K21:0.381,K22:0.373,K23:0.4171,K24:0.3364,K25:0.4035},
+    arab:{K21:0.044,K22:0.0163,K23:0.0068,K24:0.0406,K25:0.0097},
+    druze:{K21:0.2258,K22:0.1418,K23:0.1714,K24:0.2209,K25:0.1212}
+  },
+  theta_vote_by_elec:{
+    haredi:{K21:0.7283,K22:0.7326,K23:0.7288,K24:0.6858,K25:0.7206},
+    dati:{K21:0.7525,K22:0.7277,K23:0.728,K24:0.7057,K25:0.71},
+    masorti:{K21:0.6303,K22:0.6387,K23:0.6557,K24:0.5912,K25:0.6636},
+    hiloni:{K21:0.6661,K22:0.6554,K23:0.6548,K24:0.6342,K25:0.6425},
+    arab:{K21:0.4873,K22:0.5991,K23:0.6632,K24:0.4407,K25:0.5362},
+    druze:{K21:0.5583,K22:0.531,K23:0.5536,K24:0.4571,K25:0.4884}
+  },
+  ci_lo_bibi:{
+    haredi:{K21:0.9504,K22:0.9206,K23:0.9452,K24:0.9518,K25:0.9651},
+    dati:{K21:0.6454,K22:0.7891,K23:0.874,K24:0.6111,K25:0.7891},
+    masorti:{K21:0.7714,K22:0.732,K23:0.8131,K24:0.7454,K25:0.8377},
+    hiloni:{K21:0.3588,K22:0.3506,K23:0.3906,K24:0.3093,K25:0.3764},
+    arab:{K21:0.031,K22:0.0074,K23:0.0,K24:0.0314,K25:0.0001},
+    druze:{K21:0.1692,K22:0.1021,K23:0.1254,K24:0.1663,K25:0.0803}
+  },
+  ci_hi_bibi:{
+    haredi:{K21:0.9835,K22:0.9578,K23:0.9807,K24:0.9839,K25:0.9931},
+    dati:{K21:0.7006,K22:0.8265,K23:0.9158,K24:0.6718,K25:0.8413},
+    masorti:{K21:0.8292,K22:0.7987,K23:0.8788,K24:0.8075,K25:0.907},
+    hiloni:{K21:0.4037,K22:0.3964,K23:0.4429,K24:0.3606,K25:0.4342},
+    arab:{K21:0.0552,K22:0.027,K23:0.0177,K24:0.0534,K25:0.0188},
+    druze:{K21:0.2872,K22:0.1959,K23:0.2275,K24:0.2862,K25:0.172}
+  },
+  ci_lo_vote:{
+    haredi:{K21:0.6803,K22:0.6684,K23:0.6709,K24:0.6272,K25:0.6724},
+    dati:{K21:0.7147,K22:0.6922,K23:0.6856,K24:0.6708,K25:0.6764},
+    masorti:{K21:0.6094,K22:0.6223,K23:0.6402,K24:0.5732,K25:0.6455},
+    hiloni:{K21:0.656,K22:0.6445,K23:0.6428,K24:0.6222,K25:0.6297},
+    arab:{K21:0.4613,K22:0.5848,K23:0.652,K24:0.4231,K25:0.5229},
+    druze:{K21:0.5262,K22:0.5033,K23:0.5367,K24:0.429,K25:0.46}
+  },
+  ci_hi_vote:{
+    haredi:{K21:0.7698,K22:0.7773,K23:0.7774,K24:0.7374,K25:0.7649},
+    dati:{K21:0.8103,K22:0.7888,K23:0.7877,K24:0.7613,K25:0.7661},
+    masorti:{K21:0.6529,K22:0.663,K23:0.6785,K24:0.6136,K25:0.6873},
+    hiloni:{K21:0.68,K22:0.67,K23:0.6697,K24:0.6482,K25:0.6566},
+    arab:{K21:0.5101,K22:0.6151,K23:0.6748,K24:0.4627,K25:0.5541},
+    druze:{K21:0.5926,K22:0.5567,K23:0.5694,K24:0.4864,K25:0.5135}
+  },
+  elections:['K21','K22','K23','K24','K25'],
+  election_labels:{K21:'K21 Apr-19',K22:'K22 Sep-19',K23:'K23 Mar-20',K24:'K24 Mar-21',K25:'K25 Nov-22'},
+  election_actuals:{
+    K21:{bov:0.4443,wb:0.0495,wn:0.0351,wa:0.0003,boc:0.4314,seats:59,turnout:0.6488},
+    K22:{bov:0.4384,wb:0.0,wn:0.0271,wa:0.0015,boc:0.4513,seats:55,turnout:0.6558},
+    K23:{bov:0.4801,wb:0.0,wn:0.0078,wa:0.0002,boc:0.484,seats:58,turnout:0.6653},
+    K24:{bov:0.4128,wb:0.0,wn:0.0146,wa:0.0001,boc:0.419,seats:52,turnout:0.6114},
+    K25:{bov:0.4705,wb:0.0,wn:0.0583,wa:0.0293,boc:0.5157,seats:64,turnout:0.6396}
+  },
+  wasted_mean:{bibi:0.0099,nonbibi:0.0286,arab:0.0063},
+  bibi_grid:{
+    haredi:{'-3':0.9288,'-2':0.9406,'-1.5':0.9465,'-1':0.9524,'-0.5':0.9583,'0':0.9642,'0.5':0.9701,'1':0.976,'1.5':0.9819,'2':0.9878,'3':0.9996},
+    dati:{'-3':0.487,'-2':0.5799,'-1.5':0.6264,'-1':0.6728,'-0.5':0.7193,'0':0.7657,'0.5':0.8122,'1':0.8586,'1.5':0.9051,'2':0.9515,'3':1.0},
+    masorti:{'-3':0.689,'-2':0.7306,'-1.5':0.7514,'-1':0.7722,'-0.5':0.793,'0':0.8138,'0.5':0.8346,'1':0.8554,'1.5':0.8762,'2':0.897,'3':0.9386},
+    hiloni:{'-3':0.2988,'-2':0.3266,'-1.5':0.3405,'-1':0.3544,'-0.5':0.3683,'0':0.3822,'0.5':0.3961,'1':0.41,'1.5':0.4239,'2':0.4378,'3':0.4656},
+    arab:{'-3':0.0,'-2':0.0,'-1.5':0.0,'-1':0.0078,'-0.5':0.0157,'0':0.0235,'0.5':0.0314,'1':0.0392,'1.5':0.047,'2':0.0549,'3':0.0706},
+    druze:{'-3':0.0511,'-2':0.0928,'-1.5':0.1137,'-1':0.1345,'-0.5':0.1553,'0':0.1762,'0.5':0.1971,'1':0.2179,'1.5':0.2387,'2':0.2596,'3':0.3013}
+  },
+  vote_grid:{
+    haredi:{'-3':0.6617,'-2':0.6809,'-1.5':0.6904,'-1':0.7,'-0.5':0.7096,'0':0.7192,'0.5':0.7288,'1':0.7384,'1.5':0.748,'2':0.7576,'3':0.7768},
+    dati:{'-3':0.6693,'-2':0.6878,'-1.5':0.697,'-1':0.7063,'-0.5':0.7155,'0':0.7248,'0.5':0.734,'1':0.7433,'1.5':0.7525,'2':0.7618,'3':0.7803},
+    masorti:{'-3':0.5511,'-2':0.5794,'-1.5':0.5935,'-1':0.6076,'-0.5':0.6218,'0':0.6359,'0.5':0.65,'1':0.6642,'1.5':0.6783,'2':0.6924,'3':0.7207},
+    hiloni:{'-3':0.6134,'-2':0.6258,'-1.5':0.632,'-1':0.6382,'-0.5':0.6444,'0':0.6506,'0.5':0.6568,'1':0.663,'1.5':0.6692,'2':0.6754,'3':0.6878},
+    arab:{'-3':0.2804,'-2':0.3687,'-1.5':0.4129,'-1':0.457,'-0.5':0.5012,'0':0.5453,'0.5':0.5894,'1':0.6336,'1.5':0.6777,'2':0.7219,'3':0.8102},
+    druze:{'-3':0.3865,'-2':0.4302,'-1.5':0.4521,'-1':0.474,'-0.5':0.4958,'0':0.5177,'0.5':0.5395,'1':0.5614,'1.5':0.5833,'2':0.6051,'3':0.6488}
+  },
+  national_k25:{bibi_of_eligible:0.3229,nonbibi_of_eligible:0.3213,nonvoted:0.3558}
+};
+const GC = {haredi:'#C27B00',dati:'#D4920A',masorti:'#E8A830',hiloni:'#4A7BC4',arab:'#1D4E8F',druze:'#8E9BB5'};
+
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  tab:'insights', baseline:'k25',
+  bibiSd:{haredi:0,dati:0,masorti:0,hiloni:0,arab:0,druze:0},
+  voteSd:{haredi:0,dati:0,masorti:0,hiloni:0,arab:0,druze:0},
+  // wasted vote fractions (absolute, not delta):
+  // threshold lever (Scenario tab) drives nonbibi/bibi; arab is baseline-constant
+  wasted:{bibi:0, nonbibi:0.055, arab:0.0293}, // K25 defaults
+  useWeights2026:false, jzMode:false, histView:'bibi',
+  lineActive:{haredi:1,dati:1,masorti:1,hiloni:1,arab:1,druze:1}
+};
+
+// ============================================================
+// CALCULATION ENGINE
+// ============================================================
+const SD_PTS = [-3,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,3];
+
+function gridTheta(g, dim, sd) {
+  const grid = dim==='bibi' ? DATA.bibi_grid[g] : DATA.vote_grid[g];
+  const k = String(sd);
+  if (grid[k] !== undefined) return grid[k];
+  for (let i=0; i<SD_PTS.length-1; i++) {
+    const lo=SD_PTS[i], hi=SD_PTS[i+1];
+    if (sd>=lo && sd<=hi) {
+      const t=(sd-lo)/(hi-lo);
+      return grid[String(lo)]*(1-t)+grid[String(hi)]*t;
+    }
+  }
+  return grid['0'];
+}
+
+function mBibi(tB, tV, W, gs) {
+  let num=0, den=0;
+  for (const g of gs) { num+=W[g]*tV[g]*tB[g]; den+=W[g]*tV[g]; }
+  return den>0 ? num/den : 0;
+}
+
+const CALIB = {};
+(function() {
+  const gs=DATA.groups, w=DATA.group_weights_k25;
+  CALIB.k25 = DATA.election_actuals.K25.bov - mBibi(DATA.theta_bibi_k25, DATA.theta_vote_k25, w, gs);
+  const ea=DATA.election_actuals;
+  const histBOV=(ea.K21.bov+ea.K22.bov+ea.K23.bov+ea.K24.bov+ea.K25.bov)/5;
+  CALIB.hist = histBOV - mBibi(DATA.theta_bibi_mean, DATA.theta_vote_mean, w, gs);
+})();
+
+function computeScenario() {
+  const jz=state.jzMode;
+  const gs=jz ? DATA.groups.filter(g=>g!=='arab') : DATA.groups;
+  const wRaw=state.useWeights2026 ? DATA.group_weights_2026 : DATA.group_weights_k25;
+  let wSum=0; for (const g of gs) wSum+=wRaw[g];
+  const W={}; for (const g of gs) W[g]=wRaw[g]/wSum;
+
+  const tB={}, tV={};
+  for (const g of gs) {
+    const bSd=state.bibiSd[g]||0, vSd=state.voteSd[g]||0;
+    let b=gridTheta(g,'bibi',bSd), v=gridTheta(g,'vote',vSd);
+    if (state.baseline==='k25') {
+      b += DATA.theta_bibi_k25[g] - DATA.bibi_grid[g]['0'];
+      v += DATA.theta_vote_k25[g] - DATA.vote_grid[g]['0'];
+    }
+    tB[g]=Math.max(0,Math.min(1,b));
+    tV[g]=Math.max(0,Math.min(1,v));
+  }
+
+  const calib=state.baseline==='k25' ? CALIB.k25 : CALIB.hist;
+  const bov=Math.max(0,Math.min(1, mBibi(tB,tV,W,gs)+calib));
+
+  const wb=state.wasted.bibi;
+  const wn=state.wasted.nonbibi;
+  const wa=jz ? 0 : state.wasted.arab;
+  const tw=wb+wn+wa;
+  const boc=tw<1 ? Math.max(0,Math.min(1,(bov-wb)/(1-tw))) : 0;
+  const coal=Math.round(boc*120), opp=120-coal;
+
+  let tvSum=0; for (const g of gs) tvSum+=W[g]*tV[g];
+  const gCoal={}; for (const g of gs) gCoal[g]=W[g]*tV[g]*tB[g];
+
+  return {bov,boc,coal,opp,
+    coalElig:bov*tvSum, oppElig:(1-bov)*tvSum, nonvoted:1-tvSum,
+    tvSum, wb, wn, wa, tw, tB, tV, W, gs, gCoal};
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function pct(v,d=1){return(v*100).toFixed(d)+'%';}
+function fmt(v,d=1){return(v*100).toFixed(d);}
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+function sdFmt(v){return (v>=0?'+':'')+v.toFixed(1)+' SD';}
+
+// ============================================================
+// TAB NAVIGATION
+// ============================================================
+function switchTab(tab) {
+  state.tab=tab;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+tab));
+}
+
+// ============================================================
+// INSIGHTS — A: Three-way split hero
+// ============================================================
+function renderInsightsA() {
+  const el=document.getElementById('ins-a');
+  const n=DATA.national_k25;
+  const ce=n.bibi_of_eligible, oe=n.nonbibi_of_eligible, nv=n.nonvoted;
+  const cv=DATA.election_actuals.K25.bov;
+  el.innerHTML=`
+<div class="section-title">The 2022 Israeli Electorate — Three-Way Split</div>
+<div class="ins-hero">
+<div>
+<div class="ins-headline" style="font-size:19px;line-height:1.25;margin-bottom:10px">&#8220;The largest &#x2018;bloc&#x2019; in Israel<br>is non-voters.&#8221;</div>
+<p class="ins-sub">In 2022, every third eligible Israeli didn&#x27;t vote. The Coalition won not because more people supported it, but because 6% of Opposition votes went to parties below the threshold (Meretz 3.2% + Balad 2.9%).</p>
+<div style="margin-top:18px">
+<div class="split-bar-label">OF ALL ELIGIBLE VOTERS &mdash; K25 (2022)</div>
+<div class="split-bar" style="height:46px;margin-bottom:6px">
+  <div class="sbs coal" style="width:${fmt(ce,1)}%">${fmt(ce,1)}%</div>
+  <div class="sbs opp"  style="width:${fmt(oe,1)}%">${fmt(oe,1)}%</div>
+  <div class="sbs nvote"style="width:${fmt(nv,1)}%">${fmt(nv,1)}%</div>
+</div>
+<div style="display:flex;gap:14px;font-family:var(--font-mono);font-size:10px;margin-bottom:6px">
+  <span style="color:var(--coalition)">&#9632; Coalition ${fmt(ce,1)}%</span>
+  <span style="color:var(--opposition)">&#9632; Opposition ${fmt(oe,1)}%</span>
+  <span style="color:var(--muted)">&#9632; Did not vote ${fmt(nv,1)}%</span>
+</div>
+</div>
+</div>
+<div>
+<div style="font-family:var(--font-head);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px">How 32.3% became 64 seats</div>
+<div style="border-left:2px solid var(--border);padding-left:16px">
+  <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:14px">
+    <div style="min-width:28px;height:28px;border-radius:50%;background:rgba(194,123,0,0.15);border:1px solid var(--coalition);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--coalition);flex-shrink:0">1</div>
+    <div><div style="font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--coalition)">32.3% of eligible</div><div style="font-size:10px;color:var(--muted)">voted for Coalition parties</div></div>
+  </div>
+  <div style="font-size:10px;color:var(--muted);background:var(--surface2);padding:4px 10px;border-radius:3px;display:inline-block;margin-bottom:14px">Non-voters (35.6%) excluded &rarr; denominator shrinks</div>
+  <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:14px">
+    <div style="min-width:28px;height:28px;border-radius:50%;background:rgba(194,123,0,0.15);border:1px solid var(--coalition);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--coalition);flex-shrink:0">2</div>
+    <div><div style="font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--coalition)">47.0% of valid votes</div><div style="font-size:10px;color:var(--muted)">Coalition share of all votes cast</div></div>
+  </div>
+  <div style="font-size:10px;color:var(--amber);background:rgba(210,153,34,0.12);border:1px solid var(--amber);padding:4px 10px;border-radius:3px;display:inline-block;margin-bottom:14px">&#9733; Meretz 3.2% + Balad 2.9% below threshold &rarr; 6% Opposition votes wasted</div>
+  <div style="display:flex;gap:10px;align-items:flex-start">
+    <div style="min-width:28px;height:28px;border-radius:50%;background:rgba(63,185,80,0.15);border:1px solid var(--green);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--green);flex-shrink:0">3</div>
+    <div><div style="font-family:var(--font-mono);font-size:20px;font-weight:600;color:var(--green)">64 seats</div><div style="font-size:10px;color:var(--muted)">Majority (61 needed) &middot; 51.6% of above-threshold votes</div></div>
+  </div>
+</div>
+</div>
+</div>`;
+}
+
+// ============================================================
+// INSIGHTS — B: K25 anomaly panel (3 subsections)
+// ============================================================
+function renderInsightsB() {
+  const el=document.getElementById('ins-b');
+
+  // Dumbbell chart: mean (hollow) → K25 (filled), returns chart HTML only
+  function dumbbell(mVal, kVal, xMin, xMax, col) {
+    const mPct=Math.max(0,Math.min(100,(mVal-xMin)/(xMax-xMin)*100));
+    const kPct=Math.max(0,Math.min(100,(kVal-xMin)/(xMax-xMin)*100));
+    const barL=Math.min(mPct,kPct).toFixed(1);
+    const barW=Math.max(0.3,Math.abs(kPct-mPct)).toFixed(1);
+    return '<div style="position:relative;height:22px;overflow:visible">'
+      +'<div style="position:absolute;top:9px;left:0;right:0;height:3px;background:var(--surface2);border-radius:2px"></div>'
+      +'<div style="position:absolute;top:8px;height:6px;left:'+barL+'%;width:'+barW+'%;background:'+col+';opacity:0.8;border-radius:2px"></div>'
+      +'<div style="position:absolute;top:4px;left:'+mPct.toFixed(1)+'%;transform:translateX(-50%);width:13px;height:13px;border-radius:50%;border:2px solid '+col+';background:var(--bg);z-index:2" title="Mean: '+(mVal*100).toFixed(1)+'%"></div>'
+      +'<div style="position:absolute;top:4px;left:'+kPct.toFixed(1)+'%;transform:translateX(-50%);width:13px;height:13px;border-radius:50%;background:'+col+';z-index:3" title="K25: '+(kVal*100).toFixed(1)+'%"></div>'
+      +'</div>';
+  }
+
+  // Full group row: label | dumbbell | ±X seats
+  function groupRow(g, mVal, kVal, xMin, xMax, impactSeats) {
+    const col=GC[g];
+    const dev=kVal-mVal;
+    const devStr=(dev>=0?'+':'')+(dev*100).toFixed(1)+'pp';
+    const iCol=impactSeats>0?'var(--coalition)':impactSeats<0?'var(--opposition)':'var(--muted)';
+    const iStr=(impactSeats>=0?'+':'')+impactSeats+'s';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(48,54,61,0.4)">'
+      +'<div style="font-family:var(--font-head);font-size:11px;font-weight:700;color:'+col+';width:104px;flex-shrink:0">'+DATA.group_labels[g]+'</div>'
+      +'<div style="flex:1">'+dumbbell(mVal,kVal,xMin,xMax,col)+'</div>'
+      +'<div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);width:44px;text-align:right;flex-shrink:0">'+devStr+'</div>'
+      +'<div style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:'+iCol+';width:38px;text-align:right;flex-shrink:0">'+iStr+'</div>'
+      +'</div>';
+  }
+
+  // Axis tick labels — positioned to match the flex:1 chart area
+  function axisRow(xMin, xMax, ticks) {
+    const spans=ticks.map(v=>{
+      const p=((v-xMin)/(xMax-xMin)*100).toFixed(1);
+      return '<span style="position:absolute;left:'+p+'%;transform:translateX(-50%)">'+(v*100).toFixed(0)+'%</span>';
+    }).join('');
+    return '<div style="position:relative;height:14px;margin-left:112px;margin-right:90px;margin-bottom:3px;font-family:var(--font-mono);font-size:8px;color:var(--muted)">'+spans+'</div>';
+  }
+
+  function subhdr(letter, title, sub) {
+    return '<div style="font-family:var(--font-head);font-size:10px;font-weight:700;text-transform:uppercase;'
+      +'letter-spacing:0.08em;color:var(--muted);border-bottom:1px solid var(--border);'
+      +'padding-bottom:6px;margin-bottom:6px">'+letter+' &mdash; '+title
+      +(sub?' <span style="font-weight:400;letter-spacing:0;text-transform:none;font-family:var(--font-body)">'+sub+'</span>':'')
+      +'</div>';
+  }
+
+  // Seat impact functions (K25 deviation × weight × turnout × 120)
+  const impBibi=g=>Math.round((DATA.theta_bibi_k25[g]-DATA.theta_bibi_mean[g])*DATA.group_weights_k25[g]*DATA.theta_vote_k25[g]*120);
+  // Turnout impact: sign depends on coalition lean (above 0.5 = coalition group)
+  const impVote=g=>Math.round((DATA.theta_vote_k25[g]-DATA.theta_vote_mean[g])*DATA.group_weights_k25[g]*(2*DATA.theta_bibi_k25[g]-1)*120);
+
+  // Threshold impact
+  const eaK25=DATA.election_actuals.K25;
+  const twK25=eaK25.wb+eaK25.wn+eaK25.wa;
+  const bocK25thresh=(eaK25.bov-eaK25.wb)/(1-twK25);
+  const seatsWithThresh=Math.round(bocK25thresh*120);
+  const seatsNoWaste=Math.round(eaK25.bov*120);
+  const threshImpact=seatsWithThresh-seatsNoWaste;
+  const oppWastedK25=((eaK25.wn+eaK25.wa)*100).toFixed(1);
+  const oppWastedMean=((DATA.wasted_mean.nonbibi+DATA.wasted_mean.arab)*100).toFixed(1);
+
+  let html='<div class="section-title">What decided K25 vs the historical pattern</div>'
+    +'<p class="ins-sub" style="margin-bottom:16px">K25 group values vs K21&ndash;K25 mean. '
+    +'<span style="display:inline-flex;align-items:center;gap:4px">'
+    +'<span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid var(--muted);background:var(--bg)"></span>'
+    +' = historical mean</span> &nbsp; '
+    +'<span style="display:inline-flex;align-items:center;gap:4px">'
+    +'<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--muted)"></span>'
+    +' = K25 value</span>. '
+    +'Rightmost column = approx. seat effect of K25 deviation from mean.</p>';
+
+  // — Subsection A: Voting direction —
+  html+='<div style="margin-bottom:20px">'
+    +subhdr('A','Voting direction','— % Coalition of valid votes cast')
+    +'<div style="display:flex;font-family:var(--font-mono);font-size:9px;color:var(--muted);'
+    +'margin-bottom:2px;padding-right:90px">'
+    +'<div style="width:112px;flex-shrink:0;font-size:8px;text-align:right;padding-right:8px;color:var(--muted)">0% &rarr; 100%</div>'
+    +'<div style="flex:1;display:flex;justify-content:space-between">'
+    +'<span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>'
+    +'</div></div>';
+  for(const g of DATA.groups) html+=groupRow(g,DATA.theta_bibi_mean[g],DATA.theta_bibi_k25[g],0,1,impBibi(g));
+  html+='<div style="font-size:9px;color:var(--muted);text-align:right;margin-top:3px;font-style:italic">'
+    +'Impact = &Delta;pp &times; group weight &times; turnout &times; 120 seats</div>'
+    +'</div>';
+
+  // — Subsection B: Turnout —
+  html+='<div style="margin-bottom:20px">'
+    +subhdr('B','Turnout','— % of eligible voters in locality who voted')
+    +'<div style="display:flex;font-family:var(--font-mono);font-size:9px;color:var(--muted);'
+    +'margin-bottom:2px;padding-right:90px">'
+    +'<div style="width:112px;flex-shrink:0;font-size:8px;text-align:right;padding-right:8px;color:var(--muted)">30% &rarr; 80%</div>'
+    +'<div style="flex:1;display:flex;justify-content:space-between">'
+    +'<span>30%</span><span>42%</span><span>55%</span><span>67%</span><span>80%</span>'
+    +'</div></div>';
+  for(const g of DATA.groups) html+=groupRow(g,DATA.theta_vote_mean[g],DATA.theta_vote_k25[g],0.3,0.8,impVote(g));
+  html+='<div style="font-size:9px;color:var(--muted);text-align:right;margin-top:3px;font-style:italic">'
+    +'Impact = &Delta;pp &times; weight &times; direction strength &times; 120 seats</div>'
+    +'</div>';
+
+  // — Subsection C: Threshold effect —
+  html+='<div>'
+    +subhdr('C','Threshold effect','')
+    +'<div style="background:rgba(16,185,129,0.07);border:1px solid var(--anomaly);border-radius:6px;padding:16px">'
+    +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'
+    +'<span style="font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:0.07em;'
+    +'color:var(--anomaly);background:rgba(16,185,129,0.15);padding:3px 8px;border-radius:3px">'
+    +'&#9733; K25 KEY ANOMALY</span>'
+    +'<span style="font-size:10px;color:var(--muted)">Most significant K25 deviation from historical pattern</span>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;margin-bottom:14px">'
+    +'<div style="background:rgba(194,123,0,0.12);border:1px solid rgba(194,123,0,0.35);border-radius:5px;padding:12px;text-align:center">'
+    +'<div style="font-family:var(--font-mono);font-size:24px;font-weight:600;color:var(--coalition)">'+(eaK25.wb*100).toFixed(1)+'%</div>'
+    +'<div style="font-size:10px;color:var(--muted);margin-top:4px">Coalition wasted<br><span style="font-size:9px">K25 actual</span></div>'
+    +'<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:4px">hist. mean: '+(DATA.wasted_mean.bibi*100).toFixed(1)+'%</div>'
+    +'</div>'
+    +'<div style="font-size:22px;color:var(--muted);font-weight:300">&#8644;</div>'
+    +'<div style="background:rgba(43,95,168,0.12);border:1px solid rgba(43,95,168,0.35);border-radius:5px;padding:12px;text-align:center">'
+    +'<div style="font-family:var(--font-mono);font-size:24px;font-weight:600;color:var(--opposition)">'+oppWastedK25+'%</div>'
+    +'<div style="font-size:10px;color:var(--muted);margin-top:4px">Opposition wasted<br><span style="font-size:9px">K25 actual (Meretz+Balad)</span></div>'
+    +'<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:4px">hist. mean: '+oppWastedMean+'%</div>'
+    +'</div>'
+    +'</div>'
+    +'<div style="text-align:center;padding-top:12px;border-top:1px solid rgba(48,54,61,0.6)">'
+    +'<div style="font-family:var(--font-mono);font-size:28px;font-weight:600;color:var(--coalition)">+'+threshImpact+' seats</div>'
+    +'<div style="font-size:11px;color:var(--text);margin-top:4px">for Coalition from K25 threshold asymmetry</div>'
+    +'<div style="font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5">'
+    +'vs. zero-waste baseline ('+pct(eaK25.bov)+' valid vote share &rarr; '+seatsNoWaste+' seats without threshold; '
+    +'K25 threshold gave '+seatsWithThresh+' seats).</div>'
+    +'</div>'
+    +'</div>'
+    +'</div>';
+
+  el.innerHTML=html;
+}
+
+// ============================================================
+// INSIGHTS — C: What determines 2026 (3 subsections)
+// ============================================================
+function renderInsightsC() {
+  const el=document.getElementById('ins-c');
+
+  // Range bar: center at mean, shaded ±1σ band, vertical tick at mean
+  function rangebar(mVal, sdVal, xMin, xMax, col) {
+    const mPct=Math.max(0,Math.min(100,(mVal-xMin)/(xMax-xMin)*100));
+    const loPct=Math.max(0,Math.min(100,(mVal-sdVal-xMin)/(xMax-xMin)*100));
+    const hiPct=Math.max(0,Math.min(100,(mVal+sdVal-xMin)/(xMax-xMin)*100));
+    const bL=loPct.toFixed(1);
+    const bW=Math.max(0.5,hiPct-loPct).toFixed(1);
+    return '<div style="position:relative;height:22px;overflow:visible">'
+      +'<div style="position:absolute;top:9px;left:0;right:0;height:3px;background:var(--surface2);border-radius:2px"></div>'
+      +'<div style="position:absolute;top:7px;height:7px;left:'+bL+'%;width:'+bW+'%;background:'+col+';opacity:0.35;border-radius:3px"></div>'
+      +'<div style="position:absolute;top:4px;left:'+mPct.toFixed(1)+'%;transform:translateX(-50%);width:4px;height:13px;background:'+col+';border-radius:1px"></div>'
+      +'</div>';
+  }
+
+  function groupRow26(g, mVal, sdVal, xMin, xMax, impPerSd) {
+    const col=GC[g];
+    const sdPP=(sdVal*100).toFixed(1);
+    const iCol=impPerSd>1?'var(--coalition)':impPerSd<-1?'var(--opposition)':'var(--muted)';
+    const iStr='&plusmn;'+Math.abs(impPerSd)+'s/&sigma;';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(48,54,61,0.4)">'
+      +'<div style="font-family:var(--font-head);font-size:11px;font-weight:700;color:'+col+';width:104px;flex-shrink:0">'+DATA.group_labels[g]+'</div>'
+      +'<div style="flex:1">'+rangebar(mVal,sdVal,xMin,xMax,col)+'</div>'
+      +'<div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);width:44px;text-align:right;flex-shrink:0">&sigma;='+sdPP+'pp</div>'
+      +'<div style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:'+iCol+';width:38px;text-align:right;flex-shrink:0">'+iStr+'</div>'
+      +'</div>';
+  }
+
+  function subhdr(letter, title, sub) {
+    return '<div style="font-family:var(--font-head);font-size:10px;font-weight:700;text-transform:uppercase;'
+      +'letter-spacing:0.08em;color:var(--muted);border-bottom:1px solid var(--border);'
+      +'padding-bottom:6px;margin-bottom:6px">'+letter+' &mdash; '+title
+      +(sub?' <span style="font-weight:400;letter-spacing:0;text-transform:none;font-family:var(--font-body)">'+sub+'</span>':'')
+      +'</div>';
+  }
+
+  // ±1σ seat impact for direction: σ × weight × mean_turnout × 120 (unsigned — shows magnitude)
+  const impBibi1sd=g=>Math.round(DATA.theta_bibi_std[g]*DATA.group_weights_k25[g]*DATA.theta_vote_mean[g]*120);
+  // ±1σ seat impact for turnout: depends on coalition lean of group
+  const impVote1sd=g=>Math.round(DATA.theta_vote_std[g]*DATA.group_weights_k25[g]*Math.abs(2*DATA.theta_bibi_mean[g]-1)*120);
+
+  let html='<div class="section-title">What determines 2026 &mdash; Sensitivity</div>'
+    +'<p class="ins-sub" style="margin-bottom:16px">Shaded band = &plusmn;1&sigma; historical range per group. Vertical tick = long-run mean. '
+    +'&plusmn;Xs/&sigma; = approximate seat impact of a one-standard-deviation move.</p>';
+
+  // — Subsection A: Voting direction volatility —
+  html+='<div style="margin-bottom:20px">'
+    +subhdr('A','Voting direction volatility','— ±1σ range of Coalition share')
+    +'<div style="display:flex;font-family:var(--font-mono);font-size:9px;color:var(--muted);'
+    +'margin-bottom:2px;padding-right:90px">'
+    +'<div style="width:112px;flex-shrink:0;font-size:8px;text-align:right;padding-right:8px">0% &rarr; 100%</div>'
+    +'<div style="flex:1;display:flex;justify-content:space-between">'
+    +'<span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>'
+    +'</div></div>';
+  for(const g of DATA.groups) html+=groupRow26(g,DATA.theta_bibi_mean[g],DATA.theta_bibi_std[g],0,1,impBibi1sd(g));
+  html+='<div style="font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5;padding:6px 8px;background:var(--surface2);border-radius:4px">'
+    +'<span style="color:'+GC.hiloni+';font-family:var(--font-head);font-size:11px;font-weight:700">Hiloni</span>'
+    +' is the decisive lever: 61% of the electorate &times; meaningful swing range. A 1&sigma; Hiloni shift moves '
+    +impBibi1sd('hiloni')+' seats.</div>'
+    +'</div>';
+
+  // — Subsection B: Turnout volatility —
+  html+='<div style="margin-bottom:20px">'
+    +subhdr('B','Turnout volatility','— ±1σ range of group turnout')
+    +'<div style="display:flex;font-family:var(--font-mono);font-size:9px;color:var(--muted);'
+    +'margin-bottom:2px;padding-right:90px">'
+    +'<div style="width:112px;flex-shrink:0;font-size:8px;text-align:right;padding-right:8px">30% &rarr; 80%</div>'
+    +'<div style="flex:1;display:flex;justify-content:space-between">'
+    +'<span>30%</span><span>42%</span><span>55%</span><span>67%</span><span>80%</span>'
+    +'</div></div>';
+  for(const g of DATA.groups) html+=groupRow26(g,DATA.theta_vote_mean[g],DATA.theta_vote_std[g],0.3,0.8,impVote1sd(g));
+  html+='<div style="font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5;padding:6px 8px;background:var(--surface2);border-radius:4px">'
+    +'<span style="color:'+GC.arab+';font-family:var(--font-head);font-size:11px;font-weight:700">Arab turnout</span>'
+    +' is the most volatile (&sigma;=8.8pp). K24&rarr;K23 swing (+22pp &asymp; +2.5&sigma;) was worth ~8 Opposition seats'
+    +' &mdash; equivalent to the entire Coalition majority.</div>'
+    +'</div>';
+
+  // — Subsection C: Threshold volatility —
+  const elecs=DATA.elections;
+  const nets=elecs.map(e=>{const ea=DATA.election_actuals[e];return (ea.wn+ea.wa-ea.wb)*100;});
+  const minNet=Math.min(...nets).toFixed(1);
+  const maxNet=Math.max(...nets).toFixed(1);
+  html+='<div>'
+    +subhdr('C','Threshold effect volatility','')
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+    +'<div class="card-sm">'
+    +'<div style="font-family:var(--font-mono);font-size:22px;font-weight:600;color:var(--wasted)">'+minNet+'pp &rarr; +'+maxNet+'pp</div>'
+    +'<div style="font-size:10px;color:var(--muted);margin-top:4px">Net opposition threshold disadvantage &mdash; historical range across K21&ndash;K25</div>'
+    +'</div>'
+    +'<div class="card-sm">'
+    +'<div style="font-size:10px;color:var(--muted);line-height:1.6">'
+    +'K21: Coalition bled 4.9pp (New Right). K25: Opposition bled 8.8pp (Meretz+Balad). '
+    +'Rare events, decisive impact. Each pp of net disadvantage &asymp; 0.6 seats.</div>'
+    +'</div>'
+    +'</div>'
+    +'</div>';
+
+  el.innerHTML=html;
+}
+
+// ============================================================
+// SCENARIO TAB — 5 levers
+// ============================================================
+function renderScenarioLevers() {
+  const el=document.getElementById('scenario-levers');
+  // Threshold display: net = wn - wb in pp
+  const netPP=(state.wasted.nonbibi - state.wasted.bibi)*100;
+  const levers=[
+    {id:'lv-arab-vote',  label:'Arab turnout',    type:'vote', g:'arab',
+     note:'Direction stable near 2%; turnout is the lever',
+     min:-3,max:3, step:0.1, val:state.voteSd.arab,
+     ticks:[{v:-1.5,lbl:'K24 low'},{v:1.2,lbl:'K23 high'}]},
+    {id:'lv-hiloni-bibi',label:'Hiloni direction', type:'bibi', g:'hiloni',
+     min:-3,max:3, step:0.1, val:state.bibiSd.hiloni,
+     ticks:[{v:-1.5,lbl:'K24 low'},{v:1.3,lbl:'K23 high'}]},
+    {id:'lv-dati-bibi',  label:'Dati direction',   type:'bibi', g:'dati',
+     min:-3,max:3, step:0.1, val:state.bibiSd.dati,
+     ticks:[{v:-1.4,lbl:'K24 Bennett'},{v:1.4,lbl:'K23 high'}]},
+    {id:'lv-haredi-vote',label:'Haredi turnout',   type:'vote', g:'haredi',
+     note:'Direction locked at ~98% — turnout is the only lever',
+     min:-2,max:2, step:0.1, val:state.voteSd.haredi,
+     ticks:[{v:-1.0,lbl:'K24'},{v:0.5,lbl:'K25'}]},
+    {id:'lv-thresh',     label:'Threshold advantage', type:'thresh', g:null,
+     min:-5,max:6, step:0.1, val:netPP,
+     ticks:[{v:-3,lbl:'K21-like'},{v:0,lbl:'Neutral'},{v:5.5,lbl:'K25'}],
+     note:'Positive = Opposition loses more votes below threshold'}
+  ];
+
+  el.innerHTML=levers.map(lv=>{
+    const isThresh=lv.type==='thresh';
+    const isVote=lv.type==='vote';
+    const cls=isThresh?'thresh-range':isVote?'vote-range':'';
+    const ro=getReadout(lv);
+    const tickHtml=lv.ticks?lv.ticks.map(t=>{
+      const pos=((t.v-lv.min)/(lv.max-lv.min)*100).toFixed(1);
+      return `<div class="slider-tick" style="position:absolute;left:${pos}%;transform:translateX(-50%)">${t.lbl}</div>`;
+    }).join(''):'';
+    return `<div class="slider-row">
+  <div class="slider-header">
+    <span class="slider-name" style="color:${lv.g?GC[lv.g]:'var(--wasted)'}">${lv.label}</span>
+    <span class="slider-readout" id="${lv.id}-ro">${ro}</span>
+  </div>
+  <input type="range" id="${lv.id}" class="${cls}" min="${lv.min}" max="${lv.max}" step="${lv.step}" value="${lv.val.toFixed(2)}" oninput="onLever('${lv.id}',this.value)">
+  ${lv.ticks?`<div style="position:relative;height:16px;margin-top:2px">${tickHtml}</div>`:''}
+  ${lv.note?`<div class="slider-note">${lv.note}</div>`:''}
+</div>`;
+  }).join('');
+}
+
+function getReadout(lv) {
+  if(lv.type==='thresh') {
+    const net=(state.wasted.nonbibi - state.wasted.bibi)*100;
+    const wbpp=(state.wasted.bibi*100).toFixed(1);
+    const wnpp=(state.wasted.nonbibi*100).toFixed(1);
+    return `<span style="color:var(--wasted)">Net ${net>=0?'+':''}${net.toFixed(1)}pp</span> <span style="color:var(--muted)">Coal ${wbpp}% / Opp ${wnpp}% wasted</span>`;
+  }
+  const g=lv.g;
+  const sdVal= lv.type==='vote' ? (state.voteSd[g]||0) : (state.bibiSd[g]||0);
+  const sdStr=(sdVal>=0?'+':'')+sdVal.toFixed(1)+' SD';
+  if(lv.type==='vote') {
+    const tvMean=DATA.theta_vote_mean[g], tvStd=DATA.theta_vote_std[g];
+    // Approximate absolute turnout from mean + sd*std
+    const absT=clamp(tvMean+sdVal*tvStd,0,1);
+    return `<span style="color:var(--text)">${sdStr}</span> <span style="color:var(--muted)">${pct(absT)} turnout</span>`;
+  } else {
+    let tb;
+    if(state.baseline==='k25') {
+      tb=clamp(gridTheta(g,'bibi',sdVal)+(DATA.theta_bibi_k25[g]-DATA.bibi_grid[g]['0']),0,1);
+    } else {
+      tb=clamp(gridTheta(g,'bibi',sdVal),0,1);
+    }
+    const natl=tb*DATA.group_weights_k25[g]*100;
+    return `<span style="color:var(--text)">${sdStr}</span> <span style="color:var(--muted)">${pct(tb)} Coalition &middot; ${natl.toFixed(1)}% nat&#x27;l</span>`;
+  }
+}
+
+function onLever(id, raw) {
+  const v=parseFloat(raw);
+  if(id==='lv-arab-vote')   state.voteSd.arab=v;
+  else if(id==='lv-hiloni-bibi') state.bibiSd.hiloni=v;
+  else if(id==='lv-dati-bibi')   state.bibiSd.dati=v;
+  else if(id==='lv-haredi-vote') state.voteSd.haredi=v;
+  else if(id==='lv-thresh') {
+    if(v>=0){ state.wasted.nonbibi=v/100; state.wasted.bibi=0; }
+    else    { state.wasted.bibi=-v/100;   state.wasted.nonbibi=0; }
+  }
+  // Update readout for this lever
+  const lv={id,type:id.includes('vote')?'vote':id==='lv-thresh'?'thresh':'bibi',g:id.replace('lv-','').replace('-bibi','').replace('-vote','')};
+  if(id==='lv-thresh') lv.g=null;
+  document.getElementById(id+'-ro').innerHTML=getReadout(lv);
+  updateScenarioResult();
+  syncAssumptionsSliders();
+}
+
+// ============================================================
+// SCENARIO RESULT PANEL
+// ============================================================
+function updateScenarioResult() {
+  const r=computeScenario();
+  renderThreeCuts(r);
+  renderSeatHero(r);
+  renderBreakdown(r);
+}
+
+function renderThreeCuts(r) {
+  const el=document.getElementById('three-cuts');
+  const ce=r.coalElig, oe=r.oppElig, nv=r.nonvoted;
+  const bov=r.bov, aov=1-bov;
+  const cs=r.coal/120, os=r.opp/120;
+
+  const makeBar=(segments, height, threshPct, badge)=>{
+    const segs=segments.map(s=>{
+      const w=Math.max(0,s.pct*100);
+      const lbl=w>=8?`${s.pct>=0.001?(s.pct*100).toFixed(1)+'%':''}`:' ';
+      return `<div class="cut-seg ${s.cls}" style="width:${w.toFixed(2)}%;min-width:${w>0&&w<1?1:0}px" title="${s.title}">${lbl}</div>`;
+    }).join('');
+    const line=threshPct!==null?`<div class="cut-thresh" style="left:${(threshPct*100).toFixed(2)}%"><div class="cut-thresh-lbl">${badge}</div></div>`:'';
+    return `<div class="cut-bar ${height}" style="position:relative">${segs}${line}</div>`;
+  };
+
+  // Bar 1: of eligible
+  const b1=makeBar([
+    {cls:'coal',pct:ce,title:`Coalition ${pct(ce)} of eligible`},
+    {cls:'opp', pct:oe,title:`Opposition ${pct(oe)} of eligible`},
+    {cls:'nvote',pct:nv,title:`Non-voted ${pct(nv)} of eligible`}
+  ],'h-sm',null,'');
+
+  // Bar 2: of valid votes (most reliable)
+  const b2=makeBar([
+    {cls:'coal',pct:bov,title:`Coalition ${pct(bov)} of valid votes`},
+    {cls:'opp', pct:aov,title:`Opposition ${pct(aov)} of valid votes`}
+  ],'h-md', 0.5, '50%');
+
+  // Bar 3: seats
+  const b3=makeBar([
+    {cls:'coal',pct:cs,title:`Coalition ${r.coal} seats`},
+    {cls:'opp', pct:os,title:`Opposition ${r.opp} seats`}
+  ],'h-sm2', 61/120, '61 seats');
+
+  el.innerHTML=`
+<div class="cut-row"><div class="cut-label">Of eligible<br>voters</div><div class="cut-bar-wrap">${b1}<div style="display:flex;gap:8px;margin-top:3px;font-family:var(--font-mono);font-size:9px;color:var(--muted)"><span style="color:var(--coalition)">${pct(ce)}</span><span style="color:var(--opposition)">${pct(oe)}</span><span>${pct(nv)} non-voted</span></div></div></div>
+<div class="cut-row"><div class="cut-label">Of those<br>who voted<br><span style="color:var(--green);font-size:8px">&#9655; most reliable</span></div><div class="cut-bar-wrap">${b2}<div style="display:flex;gap:8px;margin-top:3px;font-family:var(--font-mono);font-size:9px"><span style="color:var(--coalition)">${pct(bov)} Coalition</span><span style="color:var(--opposition)">${pct(aov)} Opp.</span></div></div></div>
+<div class="cut-row"><div class="cut-label">Knesset<br>seats<br><span style="color:var(--muted);font-size:8px">after threshold</span></div><div class="cut-bar-wrap">${b3}</div></div>`;
+}
+
+function renderSeatHero(r) {
+  const el=document.getElementById('seat-hero');
+  const mw=document.getElementById('maj-wrap');
+  el.innerHTML=`
+<div class="seat-block"><div class="seat-num" style="color:var(--coalition)">${r.coal}</div><div class="seat-lbl">Coalition</div></div>
+<div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);align-self:center">&mdash;</div>
+<div class="seat-block"><div class="seat-num" style="color:var(--opposition)">${r.opp}</div><div class="seat-lbl">Opposition</div></div>`;
+  let badge;
+  if(r.coal>=61)       badge=`<span class="maj-badge yes">&#10003; MAJORITY</span>`;
+  else if(r.coal>=56)  badge=`<span class="maj-badge near">SHORT BY ${61-r.coal}</span>`;
+  else                 badge=`<span class="maj-badge no">NO MAJORITY &mdash; ${61-r.coal} SHORT</span>`;
+  mw.innerHTML=badge+`<span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-left:10px">bov=${pct(r.bov)} &middot; boc=${pct(r.boc)} &middot; wasted ${pct(r.tw)}</span>`;
+}
+
+function renderBreakdown(r) {
+  const el=document.getElementById('breakdown');
+  // Per-group coalition contribution bar
+  const total=Object.values(r.gCoal).reduce((a,b)=>a+b,0);
+  const segs=r.gs.map(g=>{
+    const contrib=r.gCoal[g]||0;
+    const w=total>0?(contrib/total*100).toFixed(1):0;
+    return `<div class="breakdown-seg" style="width:${w}%;background:${GC[g]};color:#000;font-size:8px">${parseFloat(w)>=5?DATA.group_labels[g]:''}</div>`;
+  }).join('');
+  const lbls=r.gs.map(g=>`<span class="bdlbl" style="color:${GC[g]}">&#9632; ${DATA.group_labels[g]} ${pct(r.gCoal[g]||0,1)}</span>`).join('');
+  
+  // Vote share by group stacked bar
+  let vsTotal=0; for(const g of r.gs) vsTotal+=r.W[g]*r.tV[g];
+  const vsSegs=r.gs.map(g=>{
+    const vs=vsTotal>0?r.W[g]*r.tV[g]/vsTotal:0;
+    const w=(vs*100).toFixed(1);
+    return `<div class="breakdown-seg" style="width:${w}%;background:${GC[g]};opacity:0.7">${parseFloat(w)>=8?pct(vs,0):''}</div>`;
+  }).join('');
+
+  el.innerHTML=`
+<div class="breakdown-title">Coalition seat contribution by group</div>
+<div class="breakdown-bar">${segs}</div>
+<div class="breakdown-lbl-row" style="margin-bottom:10px">${lbls}</div>
+<div class="breakdown-title">Vote share of valid votes by group</div>
+<div class="breakdown-bar">${vsSegs}</div>`;
+
+  // JZ note
+  const jzNote=document.getElementById('jz-note');
+  if(jzNote) jzNote.textContent=state.jzMode?'Excludes Arab parties. Arab wasted votes removed.':'';
+}
+
+function setJZ(on) {
+  state.jzMode=on;
+  document.getElementById('jz-all-btn').classList.toggle('active',!on);
+  document.getElementById('jz-jz-btn').classList.toggle('active',on);
+  if(on) state.wasted.arab=0;
+  else   state.wasted.arab=state.baseline==='k25'?0.0293:DATA.wasted_mean.arab;
+  updateScenarioResult();
+}
+
+// ============================================================
+// ASSUMPTIONS TAB
+// ============================================================
+function renderAssumptions() {
+  renderGroupSlidersAll();
+  renderThreshInputs();
+  renderThreshHistory();
+  renderWeightTable();
+  renderProjTable();
+}
+
+function renderGroupSlidersAll() {
+  const el=document.getElementById('group-sliders-all');
+  let html='';
+  for(const g of DATA.groups) {
+    const bSd=state.bibiSd[g]||0, vSd=state.voteSd[g]||0;
+    const bMean=DATA.theta_bibi_mean[g], bStd=DATA.theta_bibi_std[g];
+    const vMean=DATA.theta_vote_mean[g], vStd=DATA.theta_vote_std[g];
+    const bVal=state.baseline==='k25'?DATA.theta_bibi_k25[g]:(bMean+bSd*bStd);
+    const vVal=state.baseline==='k25'?(DATA.theta_vote_k25[g]+vSd*vStd):(vMean+vSd*vStd);
+    html+=`<div class="group-slider-block">
+  <div class="group-slider-header">
+    <span style="color:${GC[g]}">${DATA.group_labels[g]}</span>
+    <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted)">pop ${pct(DATA.group_weights_k25[g],1)}</span>
+  </div>
+  <div style="margin-bottom:10px">
+    <div class="slider-header"><span class="slider-name" style="font-size:11px">Direction (&#x3B8;&#x5F;bibi)</span>
+      <span class="slider-readout" id="as-b-${g}-ro">${sdFmt(bSd)} &middot; ${pct(bVal)} Coalition &middot; &sigma;=${(bStd*100).toFixed(1)}pp</span></div>
+    <input type="range" id="as-b-${g}" min="-3" max="3" step="0.1" value="${bSd}"
+      oninput="onAsSd('bibi','${g}',this.value)">
+  </div>
+  <div>
+    <div class="slider-header"><span class="slider-name" style="font-size:11px">Turnout (&#x3B8;&#x5F;vote)</span>
+      <span class="slider-readout" id="as-v-${g}-ro">${sdFmt(vSd)} &middot; ${pct(vMean+vSd*vStd)} turnout &middot; &sigma;=${(vStd*100).toFixed(1)}pp</span></div>
+    <input type="range" id="as-v-${g}" class="vote-range" min="-3" max="3" step="0.1" value="${vSd}"
+      oninput="onAsSd('vote','${g}',this.value)">
+  </div>
+</div>`;
+  }
+  el.innerHTML=html;
+}
+
+function onAsSd(dim, g, raw) {
+  const v=parseFloat(raw);
+  if(dim==='bibi') state.bibiSd[g]=v;
+  else             state.voteSd[g]=v;
+  // Update readout
+  const bSd=state.bibiSd[g]||0, vSd=state.voteSd[g]||0;
+  const bMean=DATA.theta_bibi_mean[g], bStd=DATA.theta_bibi_std[g];
+  const vMean=DATA.theta_vote_mean[g], vStd=DATA.theta_vote_std[g];
+  const bVal=state.baseline==='k25'?clamp(DATA.theta_bibi_k25[g]+bSd*bStd,0,1):(bMean+bSd*bStd);
+  const vVal=clamp(vMean+vSd*vStd,0,1);
+  document.getElementById(`as-b-${g}-ro`).textContent=sdFmt(bSd)+' · '+pct(bVal)+' Coalition';
+  document.getElementById(`as-v-${g}-ro`).textContent=sdFmt(vSd)+' · '+pct(vVal)+' turnout';
+  updateScenarioResult();
+  syncScenarioLevers();
+}
+
+function renderThreshInputs() {
+  const el=document.getElementById('thresh-inputs');
+  el.innerHTML=`
+<div class="thresh-input-block">
+  <div class="thresh-input-lbl">Coalition wasted (%)</div>
+  <input class="thresh-input" type="number" id="ti-bibi" min="0" max="20" step="0.1" value="${(state.wasted.bibi*100).toFixed(2)}" oninput="onThreshInput()">
+</div>
+<div class="thresh-input-block">
+  <div class="thresh-input-lbl">Opposition wasted (%)</div>
+  <input class="thresh-input" type="number" id="ti-nonbibi" min="0" max="20" step="0.1" value="${(state.wasted.nonbibi*100).toFixed(2)}" oninput="onThreshInput()">
+</div>
+<div class="thresh-input-block">
+  <div class="thresh-input-lbl">Arab parties wasted (%)</div>
+  <input class="thresh-input" type="number" id="ti-arab" min="0" max="20" step="0.1" value="${(state.wasted.arab*100).toFixed(2)}" oninput="onThreshInput()">
+</div>`;
+}
+
+function onThreshInput() {
+  state.wasted.bibi=parseFloat(document.getElementById('ti-bibi').value||0)/100;
+  state.wasted.nonbibi=parseFloat(document.getElementById('ti-nonbibi').value||0)/100;
+  state.wasted.arab=parseFloat(document.getElementById('ti-arab').value||0)/100;
+  updateScenarioResult();
+  syncScenarioLevers();
+}
+
+function renderThreshHistory() {
+  const tbl=document.getElementById('thresh-history-tbl');
+  if(!tbl) return;
+  let html=`<thead><tr><th>Election</th><th>Coalition wasted</th><th>Opposition wasted</th><th>Arab wasted</th><th>Net (Opp-Coal)</th></tr></thead><tbody>`;
+  for(const e of DATA.elections) {
+    const ea=DATA.election_actuals[e];
+    const net=((ea.wn-ea.wb)*100).toFixed(1);
+    html+=`<tr><td>${e}</td><td>${(ea.wb*100).toFixed(1)}%</td><td>${(ea.wn*100).toFixed(1)}%</td><td>${(ea.wa*100).toFixed(1)}%</td><td style="color:${parseFloat(net)>0?'var(--coalition)':'var(--opposition)'}">${parseFloat(net)>=0?'+':''}${net}pp</td></tr>`;
+  }
+  html+=`<tr style="border-top:1px solid var(--border)"><td>Mean</td><td>${(DATA.wasted_mean.bibi*100).toFixed(1)}%</td><td>${(DATA.wasted_mean.nonbibi*100).toFixed(1)}%</td><td>${(DATA.wasted_mean.arab*100).toFixed(1)}%</td><td>+${((DATA.wasted_mean.nonbibi-DATA.wasted_mean.bibi)*100).toFixed(1)}pp</td></tr>`;
+  tbl.innerHTML=html+'</tbody>';
+}
+
+function renderWeightTable() {
+  const el=document.getElementById('wt-table');
+  if(!el) return;
+  let html=`<div style="display:grid;grid-template-columns:repeat(4,auto);gap:6px 16px;font-family:var(--font-mono);font-size:11px;align-items:center">
+<span style="color:var(--muted);font-size:9px;text-transform:uppercase">Group</span>
+<span style="color:var(--muted);font-size:9px;text-transform:uppercase">K25</span>
+<span style="color:var(--muted);font-size:9px;text-transform:uppercase">2026 proj</span>
+<span style="color:var(--muted);font-size:9px;text-transform:uppercase">&#916;</span>`;
+  for(const g of DATA.groups) {
+    const k25=DATA.group_weights_k25[g], p26=DATA.group_weights_2026[g];
+    const d=(p26-k25)*100;
+    html+=`<span style="color:${GC[g]}">${DATA.group_labels[g]}</span>
+<span>${(k25*100).toFixed(1)}%</span>
+<span>${(p26*100).toFixed(1)}%</span>
+<span style="color:${d>=0?'var(--coalition)':'var(--opposition)'}">${d>=0?'+':''}${d.toFixed(2)}pp</span>`;
+  }
+  el.innerHTML=html+'</div>';
+}
+
+function renderProjTable() {
+  const el=document.getElementById('proj-table');
+  if(!el) return;
+  // Compute 2026 projection with K25 voting behavior + 2026 weights + mean wasted
+  const gs=DATA.groups, w26=DATA.group_weights_2026;
+  const tB=DATA.theta_bibi_k25, tV=DATA.theta_vote_k25;
+  let num=0,den=0;
+  for(const g of gs){num+=w26[g]*tV[g]*tB[g];den+=w26[g]*tV[g];}
+  const bov26=den>0?num/den:0;
+  const bov26cal=clamp(bov26+CALIB.k25,0,1);
+  const wn=DATA.wasted_mean.nonbibi, wb=DATA.wasted_mean.bibi, wa=DATA.wasted_mean.arab;
+  const tw=wb+wn+wa;
+  const boc26=tw<1?(bov26cal-wb)/(1-tw):0;
+  const s26=Math.round(clamp(boc26,0,1)*120);
+  el.innerHTML=`<div style="font-family:var(--font-mono);font-size:11px;line-height:2">
+<div>2026 demographics &times; K25 voting behavior &times; historical-mean wasted votes:</div>
+<div>Coalition share of valid votes: <strong>${pct(bov26cal)}</strong> (K25: ${pct(DATA.election_actuals.K25.bov)})</div>
+<div>Projected seats: <strong style="color:var(--coalition)">${s26}</strong> (K25 actual: 64)</div>
+<div style="color:var(--muted);font-size:10px">+0.2pp Coalition advantage from demographic change alone over 3.5 years.</div>
+</div>`;
+}
+
+// Sync sliders across tabs
+function syncScenarioLevers() {
+  const levers=[
+    {id:'lv-arab-vote',   val:state.voteSd.arab},
+    {id:'lv-hiloni-bibi', val:state.bibiSd.hiloni},
+    {id:'lv-dati-bibi',   val:state.bibiSd.dati},
+    {id:'lv-haredi-vote', val:state.voteSd.haredi}
+  ];
+  for(const lv of levers) {
+    const el=document.getElementById(lv.id);
+    if(el) el.value=lv.val;
+  }
+}
+function syncAssumptionsSliders() {
+  for(const g of DATA.groups) {
+    const be=document.getElementById(`as-b-${g}`);
+    const ve=document.getElementById(`as-v-${g}`);
+    if(be) be.value=state.bibiSd[g]||0;
+    if(ve) ve.value=state.voteSd[g]||0;
+  }
+}
+
+// ============================================================
+// HISTORY TAB
+// ============================================================
+function renderHistory() {
+  buildHeatmap();
+  buildLineChart();
+}
+
+function buildHeatmap() {
+  const tbl=document.getElementById('heatmap-tbl');
+  const isBibi=state.histView==='bibi';
+  const data_src=isBibi?DATA.theta_bibi_by_elec:DATA.theta_vote_by_elec;
+  const title=document.getElementById('hm-title');
+  if(title) title.textContent=isBibi?'Coalition share by group × election':'Turnout by group × election';
+
+  // Compute row means for flagging
+  const rowMeans={};
+  for(const g of DATA.groups) {
+    let s=0,n=0;
+    for(const e of DATA.elections){s+=data_src[g][e];n++;}
+    rowMeans[g]=s/n;
+  }
+
+  let html=`<thead><tr><th>Group</th>`;
+  for(const e of DATA.elections) html+=`<th style="${e==='K25'?'color:var(--text);border-bottom:2px solid var(--coalition)':''}">${e}</th>`;
+  html+=`<th style="color:var(--muted)">Mean</th></tr></thead><tbody>`;
+
+  for(const g of DATA.groups) {
+    html+=`<tr><td style="color:${GC[g]}">${DATA.group_labels[g]}</td>`;
+    for(const e of DATA.elections) {
+      const v=data_src[g][e];
+      const dev=Math.abs(v-rowMeans[g]);
+      const flag=dev>0.05?'<span class="hm-flag">&#9733;</span>':'';
+      // Color: for bibi: red (high) to blue (low); for vote: green (high) to muted (low)
+      let bg;
+      if(isBibi) {
+        const t=v; // 0..1
+        if(t>0.5) {
+          const x=(t-0.5)*2;
+          bg=`rgba(194,123,0,${(0.15+x*0.5).toFixed(2)})`;
+        } else {
+          const x=(0.5-t)*2;
+          bg=`rgba(43,95,168,${(0.15+x*0.5).toFixed(2)})`;
+        }
+      } else {
+        const x=clamp((v-0.3)/0.5,0,1);
+        bg=`rgba(63,185,80,${(0.1+x*0.45).toFixed(2)})`;
+      }
+      const eStyle=e==='K25'?'font-weight:700;':'';
+      html+=`<td style="${eStyle}"><span class="hm-cell" style="background:${bg}">${(v*100).toFixed(1)}%${flag}</span></td>`;
+    }
+    html+=`<td style="color:var(--muted);font-family:var(--font-mono);font-size:10px">${(rowMeans[g]*100).toFixed(1)}%</td></tr>`;
+  }
+
+  // National row
+  html+=`<tr style="border-top:2px solid var(--border)"><td style="font-style:italic;color:var(--muted)">National</td>`;
+  for(const e of DATA.elections) {
+    const ea=DATA.election_actuals[e];
+    const v=isBibi?ea.bov:ea.turnout;
+    const eStyle=e==='K25'?'font-weight:700;':'';
+    const note=isBibi?` (${ea.seats}s)`:'';
+    html+=`<td style="${eStyle}"><span class="hm-cell" style="background:rgba(100,100,100,0.15)">${(v*100).toFixed(1)}%${note}</span></td>`;
+  }
+  html+=`<td></td></tr></tbody>`;
+  tbl.innerHTML=html;
+  // Update hist note
+  const note=document.getElementById('hist-note');
+  if(note) note.textContent=isBibi?'Vote choice R²=0.78–0.81 per election. K25 highlighted.':'Turnout R²=0.12–0.45 — higher uncertainty than vote choice. Arab row most volatile.';
+}
+
+function buildLineChart() {
+  const svg=document.getElementById('line-chart');
+  const isBibi=state.histView==='bibi';
+  const data_src=isBibi?DATA.theta_bibi_by_elec:DATA.theta_vote_by_elec;
+  const ci_lo=isBibi?DATA.ci_lo_bibi:DATA.ci_lo_vote;
+  const ci_hi=isBibi?DATA.ci_hi_bibi:DATA.ci_hi_vote;
+  const W=760, H=260, PL=40, PR=20, PT=20, PB=30;
+  const cW=W-PL-PR, cH=H-PT-PB;
+  const N=DATA.elections.length;
+  const xStep=cW/(N-1);
+  const yMin=isBibi?0:0.25, yMax=isBibi?1.05:0.85;
+  const yScale=v=>(1-(v-yMin)/(yMax-yMin))*cH+PT;
+  const xPos=i=>PL+i*xStep;
+
+  let html='';
+  // Y gridlines
+  for(let y=0;y<=1;y+=0.1) {
+    if(y<yMin||y>yMax) continue;
+    const yp=yScale(y);
+    html+=`<line x1="${PL}" y1="${yp.toFixed(1)}" x2="${PL+cW}" y2="${yp.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>`;
+    html+=`<text x="${PL-4}" y="${(yp+4).toFixed(1)}" font-family="var(--font-mono)" font-size="8" fill="var(--muted)" text-anchor="end">${(y*100).toFixed(0)}%</text>`;
+  }
+  // Majority line at 0.5 for bibi
+  if(isBibi) {
+    const yp=yScale(0.5);
+    html+=`<line x1="${PL}" y1="${yp.toFixed(1)}" x2="${PL+cW}" y2="${yp.toFixed(1)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="5,3"/>`;
+    html+=`<text x="${PL+cW+2}" y="${(yp+4).toFixed(1)}" font-family="var(--font-mono)" font-size="8" fill="var(--muted)">50%</text>`;
+  }
+  // X axis labels
+  DATA.elections.forEach((e,i)=>{
+    html+=`<text x="${xPos(i).toFixed(1)}" y="${(H-5).toFixed(1)}" font-family="var(--font-mono)" font-size="9" fill="${e==='K25'?'var(--text)':'var(--muted)'}" text-anchor="middle">${e}</text>`;
+  });
+
+  // Group lines
+  for(const g of DATA.groups) {
+    if(!state.lineActive[g]) continue;
+    const col=GC[g];
+    // CI band
+    let ciPath='', loPath='', hiPath='';
+    DATA.elections.forEach((e,i)=>{
+      const lo=ci_lo[g][e], hi=ci_hi[g][e];
+      const x=xPos(i), ylo=yScale(lo), yhi=yScale(hi);
+      if(i===0){loPath=`M${x},${ylo}`;hiPath=`M${x},${yhi}`;}
+      else{loPath+=` L${x},${ylo}`;hiPath+=` L${x},${yhi}`;}
+    });
+    for(let i=DATA.elections.length-1;i>=0;i--){
+      const e=DATA.elections[i];
+      const x=xPos(i), yhi=yScale(ci_hi[g][e]);
+      loPath+=` L${x},${yhi}`;
+    }
+    html+=`<path d="${loPath} Z" fill="${col}" fill-opacity="0.12"/>`;
+    // Main line
+    let linePath='';
+    DATA.elections.forEach((e,i)=>{
+      const v=data_src[g][e];
+      const x=xPos(i), yp=yScale(v);
+      linePath+=(i===0?`M${x.toFixed(1)},${yp.toFixed(1)}`:`L${x.toFixed(1)},${yp.toFixed(1)}`);
+    });
+    html+=`<path d="${linePath}" fill="none" stroke="${col}" stroke-width="2"/>`;
+    // Dots
+    DATA.elections.forEach((e,i)=>{
+      const v=data_src[g][e];
+      const x=xPos(i), yp=yScale(v);
+      const dev=Math.abs(v-DATA.elections.reduce((a,ee)=>a+data_src[g][ee],0)/5);
+      html+=`<circle cx="${x.toFixed(1)}" cy="${yp.toFixed(1)}" r="${e==='K25'?4:3}" fill="${col}" stroke="var(--bg)" stroke-width="1.5"/>`;
+      if(dev>0.05) html+=`<text x="${x.toFixed(1)}" y="${(yp-8).toFixed(1)}" font-family="var(--font-mono)" font-size="8" fill="${col}" text-anchor="middle">&#9733;</text>`;
+    });
+  }
+
+  svg.innerHTML=html;
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+
+  // Legend
+  const leg=document.getElementById('chart-legend');
+  if(leg) {
+    leg.innerHTML=DATA.groups.map(g=>`
+<div class="leg-item${state.lineActive[g]?'':' off'}" onclick="toggleLine('${g}')">
+  <div class="leg-dot" style="background:${GC[g]}"></div>
+  <span class="leg-lbl">${DATA.group_labels[g]}</span>
+</div>`).join('');
+  }
+  const ct=document.getElementById('chart-title');
+  if(ct) ct.textContent=isBibi?'Coalition share K21–K25':'Turnout K21–K25';
+}
+
+function toggleLine(g) {
+  state.lineActive[g]=state.lineActive[g]?0:1;
+  buildLineChart();
+}
+
+// ============================================================
+// BASELINE SWITCH + RESET + PRESETS
+// ============================================================
+function setBaseline(base) {
+  state.baseline=base;
+  // Update group sliders: reset to 0
+  for(const g of DATA.groups){state.bibiSd[g]=0;state.voteSd[g]=0;}
+  // Set threshold defaults
+  if(base==='k25'){
+    state.wasted={bibi:0, nonbibi:0.055, arab:state.jzMode?0:0.0293};
+  } else {
+    state.wasted={bibi:DATA.wasted_mean.bibi, nonbibi:DATA.wasted_mean.nonbibi, arab:state.jzMode?0:DATA.wasted_mean.arab};
+  }
+  // Sync UI
+  document.querySelectorAll('[data-base]').forEach(b=>b.classList.toggle('active',b.dataset.base===base));
+  renderScenarioLevers();
+  updateScenarioResult();
+  renderGroupSlidersAll();
+  renderThreshInputs();
+}
+
+function resetToBaseline() {
+  setBaseline(state.baseline);
+}
+
+function applyPreset(preset) {
+  for(const g of DATA.groups){state.bibiSd[g]=0;state.voteSd[g]=0;}
+  if(preset==='baseline') {
+    // all 0
+  } else if(preset==='k23') {
+    // K23: high Arab turnout, high Dati, low wasted (few parties below threshold)
+    state.voteSd.arab=1.3; state.bibiSd.dati=1.4; state.bibiSd.hiloni=1.3;
+    state.wasted={bibi:0, nonbibi:0.001, arab:0};
+  } else if(preset==='k24') {
+    // K24: low Arab turnout, low Dati (Bennett), low wasted
+    state.voteSd.arab=-1.5; state.bibiSd.dati=-1.4; state.bibiSd.hiloni=-1.5;
+    state.wasted={bibi:0, nonbibi:0.015, arab:0};
+  }
+  renderScenarioLevers();
+  updateScenarioResult();
+  syncAssumptionsSliders();
+  const sel=document.getElementById('preset-sel');
+  if(sel) sel.value='';
+}
+
+// ============================================================
+// BOOT
+// ============================================================
+function init() {
+  // Tab navigation
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>switchTab(btn.dataset.tab));
+  });
+
+  // Baseline toggle (both in Scenario and Assumptions)
+  document.querySelectorAll('[data-base]').forEach(btn=>{
+    btn.addEventListener('click',()=>setBaseline(btn.dataset.base));
+  });
+
+  // Population weight toggle
+  document.querySelectorAll('[data-pw]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      state.useWeights2026=btn.dataset.pw==='2026';
+      document.querySelectorAll('[data-pw]').forEach(b=>b.classList.toggle('active',b.dataset.pw===(state.useWeights2026?'2026':'k25')));
+      updateScenarioResult();
+    });
+  });
+
+  // History view toggle
+  document.querySelectorAll('.hist-view-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      state.histView=btn.dataset.hv;
+      document.querySelectorAll('.hist-view-btn').forEach(b=>b.classList.toggle('active',b.dataset.hv===state.histView));
+      renderHistory();
+    });
+  });
+
+  // Reset buttons
+  const rb1=document.getElementById('reset-btn');
+  if(rb1) rb1.addEventListener('click',resetToBaseline);
+  const rb2=document.getElementById('reset-btn-2');
+  if(rb2) rb2.addEventListener('click',resetToBaseline);
+
+  // Preset dropdown
+  const ps=document.getElementById('preset-sel');
+  if(ps) ps.addEventListener('change',()=>{if(ps.value) applyPreset(ps.value);});
+
+  // Render all tabs
+  renderInsightsA();
+  renderInsightsB();
+  renderInsightsC();
+  renderScenarioLevers();
+  renderAssumptions();
+  renderHistory();
+  updateScenarioResult();
+
+  // Start on Insights
+  switchTab('insights');
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
