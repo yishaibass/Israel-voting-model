@@ -567,8 +567,9 @@ const GC = {haredi:'#C27B00',dati:'#D4920A',masorti:'#E8A830',hiloni:'#4A7BC4',a
 // ============================================================
 const state = {
   tab:'overview', baseline:'k25',
-  bibiSd:{haredi:0,dati:0,masorti:0,hiloni:0,arab:0,druze:0},
-  voteSd:{haredi:0,dati:0,masorti:0,hiloni:0,arab:0,druze:0},
+  // K25 baseline: sliders sit at K25 SD deviation from historical mean = (K25 - mean) / std
+  bibiSd:(()=>{const s={};for(const g of DATA.groups)s[g]=(DATA.theta_bibi_k25[g]-DATA.theta_bibi_mean[g])/DATA.theta_bibi_std[g];return s;})(),
+  voteSd:(()=>{const s={};for(const g of DATA.groups)s[g]=(DATA.theta_vote_k25[g]-DATA.theta_vote_mean[g])/DATA.theta_vote_std[g];return s;})(),
   // wasted vote fractions (absolute, not delta):
   // threshold lever (Scenario tab) drives nonbibi/bibi; arab is baseline-constant
   wasted:{bibi:0.0119, nonbibi:0.0466, arab:0.0291}, // K25 defaults
@@ -620,13 +621,11 @@ function computeScenario() {
   const tB={}, tV={};
   for (const g of gs) {
     const bSd=state.bibiSd[g]||0, vSd=state.voteSd[g]||0;
-    let b=gridTheta(g,'bibi',bSd), v=gridTheta(g,'vote',vSd);
-    if (state.baseline==='k25') {
-      b += DATA.theta_bibi_k25[g] - DATA.bibi_grid[g]['0'];
-      v += DATA.theta_vote_k25[g] - DATA.vote_grid[g]['0'];
-    }
-    tB[g]=Math.max(0,Math.min(1,b));
-    tV[g]=Math.max(0,Math.min(1,v));
+    // bibiSd/voteSd encode baseline directly:
+    //   K25 mode  → initialized to (K25-mean)/std, so gridTheta returns K25 theta exactly
+    //   hist mode → initialized to 0, so gridTheta returns historical mean theta
+    tB[g]=Math.max(0,Math.min(1,gridTheta(g,'bibi',bSd)));
+    tV[g]=Math.max(0,Math.min(1,gridTheta(g,'vote',vSd)));
   }
 
   const calib=state.baseline==='k25' ? CALIB.k25 : CALIB.hist;
@@ -1028,12 +1027,8 @@ function getReadout(lv) {
     const absT=clamp(tvMean+sdVal*tvStd,0,1);
     return `<span style="color:var(--text)">${sdStr}</span> <span style="color:var(--muted)">${pct(absT)} turnout</span>`;
   } else {
-    let tb;
-    if(state.baseline==='k25') {
-      tb=clamp(gridTheta(g,'bibi',sdVal)+(DATA.theta_bibi_k25[g]-DATA.bibi_grid[g]['0']),0,1);
-    } else {
-      tb=clamp(gridTheta(g,'bibi',sdVal),0,1);
-    }
+    // sdVal encodes baseline directly — gridTheta gives the correct absolute theta
+    const tb=clamp(gridTheta(g,'bibi',sdVal),0,1);
     const natl=tb*DATA.group_weights_k25[g]*100;
     return `<span style="color:var(--text)">${sdStr}</span> <span style="color:var(--muted)">${pct(tb)} Coalition &middot; ${natl.toFixed(1)}% nat&#x27;l</span>`;
   }
@@ -1069,7 +1064,12 @@ function updateScenarioResult() {
 
 function renderThreeCuts(r) {
   const el=document.getElementById('three-cuts');
-  const bov=r.bov, aov=1-bov;
+  // Top bar: exclude minor unaffiliated (niche) parties — both numerator and denominator
+  // niche_frac derived once from K25 display_stats; assumed constant across scenarios
+  const ds=DATA.display_stats.k25_baseline;
+  const niche_frac=1-ds.bibi_of_valid/ds.bibi_share_excl_niche; // ~4.3%
+  const ben=clamp(r.bov/(1-niche_frac),0,1); // Coalition share excl niche
+  const aen=1-ben;                             // Opposition share excl niche
   const boc=r.boc, aoc=1-boc;
 
   const makeBar=(segments, height, threshPct, badge)=>{
@@ -1082,25 +1082,25 @@ function renderThreeCuts(r) {
     return `<div class="cut-bar ${height}" style="position:relative">${segs}${line}</div>`;
   };
 
-  // Bar 1 — all valid votes (bov), 50% marker
+  // Bar 1 — directly observed vote share (excl minor parties), "most reliable"
   const b1=makeBar([
-    {cls:'coal',pct:bov,title:`Coalition ${pct(bov)} of all valid votes`},
-    {cls:'opp', pct:aov,title:`Opposition ${pct(aov)} of all valid votes`}
-  ],'h-sm', 0.5, '50%');
+    {cls:'coal',pct:ben,title:`Coalition ${pct(ben)} (excl. minor unaffiliated parties)`},
+    {cls:'opp', pct:aen,title:`Opposition ${pct(aen)} (excl. minor unaffiliated parties)`}
+  ],'h-md', 0.5, '50%');
 
-  // Bar 2 — after-threshold votes (boc), 50% marker, taller = more reliable
+  // Bar 2 — after-threshold votes (boc), threshold-adjusted
   const b2=makeBar([
     {cls:'coal',pct:boc,title:`Coalition ${pct(boc)} of above-threshold votes`},
     {cls:'opp', pct:aoc,title:`Opposition ${pct(aoc)} of above-threshold votes`}
-  ],'h-md', 0.5, '50%');
+  ],'h-sm', 0.5, '50%');
 
   const wastedSub=r.tw>0.02
-    ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;font-style:italic">${pct(r.tw,1)} of votes went below the 3.25% threshold</div>`
+    ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;font-style:italic">${pct(r.tw,1)} of votes went to parties below the 3.25% threshold</div>`
     : '';
 
   el.innerHTML=`
-<div class="cut-row"><div class="cut-label">All valid<br>votes cast<br><span style="color:var(--muted);font-size:8px">incl. below-threshold</span></div><div class="cut-bar-wrap">${b1}<div style="display:flex;gap:8px;margin-top:3px;font-family:var(--font-mono);font-size:9px"><span style="color:var(--coalition)">${pct(bov)} Coalition</span><span style="color:var(--opposition)">${pct(aov)} Opposition</span></div></div></div>
-<div class="cut-row"><div class="cut-label">After 3.25%<br>threshold<br><span style="color:var(--green);font-size:8px">&#9655; most reliable</span></div><div class="cut-bar-wrap">${b2}<div style="display:flex;gap:8px;margin-top:3px;font-family:var(--font-mono);font-size:9px"><span style="color:var(--coalition)">${pct(boc)} Coalition</span><span style="color:var(--opposition)">${pct(aoc)} Opposition</span></div>${wastedSub}</div></div>`;
+<div class="cut-row"><div class="cut-label">All valid<br>votes cast<br><span style="color:var(--green);font-size:8px">&#9655; most reliable</span></div><div class="cut-bar-wrap">${b1}<div style="display:flex;gap:8px;margin-top:3px;font-family:var(--font-mono);font-size:9px"><span style="color:var(--coalition)">${pct(ben)} Coalition</span><span style="color:var(--opposition)">${pct(aen)} Opposition</span></div><div style="font-size:9px;color:var(--muted);margin-top:2px;font-style:italic">Excluding minor unaffiliated parties</div></div></div>
+<div class="cut-row"><div class="cut-label">After 3.25%<br>threshold<br><span style="color:var(--muted);font-size:8px">threshold adjusted</span></div><div class="cut-bar-wrap">${b2}<div style="display:flex;gap:8px;margin-top:3px;font-family:var(--font-mono);font-size:9px"><span style="color:var(--coalition)">${pct(boc)} Coalition</span><span style="color:var(--opposition)">${pct(aoc)} Opposition</span></div>${wastedSub}</div></div>`;
 }
 
 function renderSeatHero(r) {
@@ -1139,8 +1139,8 @@ function renderGroupSlidersAll() {
     const bSd=state.bibiSd[g]||0, vSd=state.voteSd[g]||0;
     const bMean=DATA.theta_bibi_mean[g], bStd=DATA.theta_bibi_std[g];
     const vMean=DATA.theta_vote_mean[g], vStd=DATA.theta_vote_std[g];
-    const bVal=state.baseline==='k25'?DATA.theta_bibi_k25[g]:(bMean+bSd*bStd);
-    const vVal=state.baseline==='k25'?(DATA.theta_vote_k25[g]+vSd*vStd):(vMean+vSd*vStd);
+    const bVal=clamp(gridTheta(g,'bibi',bSd),0,1);
+    const vVal=clamp(gridTheta(g,'vote',vSd),0,1);
     html+=`<div class="group-slider-block">
   <div class="group-slider-header">
     <span style="color:${GC[g]}">${DATA.group_labels[g]}</span>
@@ -1171,8 +1171,8 @@ function onAsSd(dim, g, raw) {
   const bSd=state.bibiSd[g]||0, vSd=state.voteSd[g]||0;
   const bMean=DATA.theta_bibi_mean[g], bStd=DATA.theta_bibi_std[g];
   const vMean=DATA.theta_vote_mean[g], vStd=DATA.theta_vote_std[g];
-  const bVal=state.baseline==='k25'?clamp(DATA.theta_bibi_k25[g]+bSd*bStd,0,1):(bMean+bSd*bStd);
-  const vVal=clamp(vMean+vSd*vStd,0,1);
+  const bVal=clamp(gridTheta(g,'bibi',bSd),0,1);
+  const vVal=clamp(gridTheta(g,'vote',vSd),0,1);
   document.getElementById(`as-b-${g}-ro`).textContent=sdFmt(bSd)+' · '+pct(bVal)+' Coalition';
   document.getElementById(`as-v-${g}-ro`).textContent=sdFmt(vSd)+' · '+pct(vVal)+' turnout';
   updateScenarioResult();
@@ -1451,8 +1451,15 @@ function toggleLine(g) {
 // ============================================================
 function setBaseline(base) {
   state.baseline=base;
-  // Update group sliders: reset to 0
-  for(const g of DATA.groups){state.bibiSd[g]=0;state.voteSd[g]=0;}
+  // Sliders: K25 → K25 SD deviation from mean; historical → 0 (at mean)
+  for(const g of DATA.groups) {
+    if(base==='k25') {
+      state.bibiSd[g]=(DATA.theta_bibi_k25[g]-DATA.theta_bibi_mean[g])/DATA.theta_bibi_std[g];
+      state.voteSd[g]=(DATA.theta_vote_k25[g]-DATA.theta_vote_mean[g])/DATA.theta_vote_std[g];
+    } else {
+      state.bibiSd[g]=0; state.voteSd[g]=0;
+    }
+  }
   // Set threshold defaults
   if(base==='k25'){
     state.wasted={bibi:0.0119, nonbibi:0.0466, arab:state.jzMode?0:0.0291};
